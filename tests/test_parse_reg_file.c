@@ -94,8 +94,8 @@ START_TEST(test_simple_wds)
 	// Create reg file
 	assert(sparse_buf_init(&buf, 0x80) == 0);
 	test_filename = create_config(
-		"S2 0011\n"
-		"S2 0122\n"
+		"S2 8011\n"
+		"S2 8122\n"
 		);
 	assert(test_filename != NULL);
 
