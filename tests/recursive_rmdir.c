@@ -43,7 +43,15 @@
 static int _recursive_rmdir_cb(const char *fpath, const struct stat *sb,
 		int typeflag, struct FTW *ftwbuf)
 {
-	if (remove(fpath) != 0) {
+	int err = -1;
+
+	if (typeflag == FTW_D || typeflag == FTW_DNR || typeflag == FTW_DP) {
+		err = rmdir(fpath);
+	} else {
+		err = unlink(fpath);
+	}
+
+	if (err != 0) {
 		fprintf(stderr, "Failed to remove '%s': %s\n",
 				fpath, strerror(errno));
 		return -2;
