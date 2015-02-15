@@ -119,10 +119,34 @@ int si443x_open(si443x_dev_t *dev, const char *filename)
 void si443x_dump_status(si443x_dev_t *dev)
 {
 	uint8_t buf[2];
+
 	si443x_read_regs(dev, INTERRUPT_STATUS_1, buf, 2);
 	fprintf(stderr, "Interrupt/Device Status: %.2x %.2x", buf[0], buf[1]);
+
 	si443x_read_reg(dev, DEVICE_STATUS, &buf[0]);
 	fprintf(stderr, " %.2x\n", buf[0]);
+}
+
+int si443x_reset(si443x_dev_t *dev)
+{
+	int err = -1;
+	uint8_t val;
+
+	err = si443x_write_reg(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
+			OPERATING_MODE_AND_FUNCTION_CONTROL_1_XTON |
+			OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES);
+	if (err != 0) {
+		return err;
+	}
+
+	do {
+		err = si443x_read_reg(dev, INTERRUPT_STATUS_2, &val);
+		if (err != 0) {
+			return err;
+		}
+	} while ((val & INTERRUPT_STATUS_2_ICHIPRDY) == 0);
+
+	return 0;
 }
 
 int si443x_reset_rx_fifo(si443x_dev_t *dev)
@@ -167,6 +191,30 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 			return err;
 	}
 
+	return 0;
+}
+
+int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs)
+{
+	int err = -1;
+	size_t off = 0;
+
+	while ((off = sparse_buf_next_valid(regs, off))
+			!= SPARSE_BUF_OFF_END) {
+		const size_t len = sparse_buf_valid_length(regs, off);
+		const uint8_t *startp = sparse_buf_at(regs, off);
+
+		if (startp == NULL) {
+			return -1;
+		}
+
+		err = si443x_write_regs(dev, off, startp, len);
+		if (err != 0) {
+			return err;
+		}
+
+		off += len;
+	}
 	return 0;
 }
 

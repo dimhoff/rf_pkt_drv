@@ -30,6 +30,7 @@
 #define __SI443X_H__
 
 #include "si443x_enums.h"
+#include "sparse_buf.h"
 
 #define SI443X_FIFO_SIZE 64
 
@@ -40,12 +41,16 @@ typedef struct {
 int si443x_open(si443x_dev_t *dev, const char *filename);
 void si443x_close(si443x_dev_t *dev);
 
+int si443x_reset(si443x_dev_t *dev);
+int si443x_reset_rx_fifo(si443x_dev_t *dev);
+
+int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs);
+
 int si443x_read_reg(si443x_dev_t *dev, uint8_t addr, uint8_t *data);
 int si443x_read_regs(si443x_dev_t *dev, uint8_t addr, uint8_t *data, size_t len);
 int si443x_write_reg(si443x_dev_t *dev, uint8_t addr, uint8_t data);
 int si443x_write_regs(si443x_dev_t *dev, uint8_t addr, const uint8_t *data, size_t len);
 
 void si443x_dump_status(si443x_dev_t *dev);
-int si443x_reset_rx_fifo(si443x_dev_t *dev);
 
 #endif // __SI443X_H__

@@ -87,73 +87,12 @@ void usage(const char *name)
 static int initialize_receiver(si443x_dev_t *dev, sparse_buf_t *regs)
 {
 	int err = -1;
-	uint8_t val;
 
 	// reset
-	//TODO: make this into a si443x_reset() function?
-	CHECK(si443x_write_reg(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
-			OPERATING_MODE_AND_FUNCTION_CONTROL_1_XTON |
-			OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES));
-	do {
-		CHECK(si443x_read_reg(dev, INTERRUPT_STATUS_2, &val));
-	} while ((val & INTERRUPT_STATUS_2_ICHIPRDY) == 0);
+	CHECK(si443x_reset(dev));
 
 	// Program magic values from calculator sheet
-	//TODO: implement
-#if 0
 	CHECK(si443x_configure(dev, regs));
-#else
-	CHECK(si443x_write_reg(dev, 0x1C, 0x06));
-	CHECK(si443x_write_reg(dev, 0x1D, 0x44));
-	CHECK(si443x_write_reg(dev, 0x1E, 0x0A));
-	CHECK(si443x_write_reg(dev, 0x1F, 0x00));
-	CHECK(si443x_write_reg(dev, 0x20, 0xA1));
-	CHECK(si443x_write_reg(dev, 0x21, 0x20));
-	CHECK(si443x_write_reg(dev, 0x22, 0x4E));
-	CHECK(si443x_write_reg(dev, 0x23, 0xA5));
-	CHECK(si443x_write_reg(dev, 0x24, 0x10));
-	CHECK(si443x_write_reg(dev, 0x25, 0x1C));
-	CHECK(si443x_write_reg(dev, 0x2A, 0x28));
-	CHECK(si443x_write_reg(dev, 0x2C, 0x28));
-	CHECK(si443x_write_reg(dev, 0x2D, 0x82));
-	CHECK(si443x_write_reg(dev, 0x2E, 0x2A));
-
-	CHECK(si443x_write_reg(dev, 0x30, 0xA9));
-	CHECK(si443x_write_reg(dev, 0x32, 0x0C));
-	CHECK(si443x_write_reg(dev, 0x33, 0x22));
-	CHECK(si443x_write_reg(dev, 0x34, 0x1A));
-	CHECK(si443x_write_reg(dev, 0x35, 0x2A));
-	CHECK(si443x_write_reg(dev, 0x36, 0x2D));
-	CHECK(si443x_write_reg(dev, 0x37, 0xD4));
-	CHECK(si443x_write_reg(dev, 0x38, 0x00));
-	CHECK(si443x_write_reg(dev, 0x39, 0x00));
-	CHECK(si443x_write_reg(dev, 0x3A, 0x00));
-	CHECK(si443x_write_reg(dev, 0x3B, 0x00));
-	CHECK(si443x_write_reg(dev, 0x3C, 0x00));
-	CHECK(si443x_write_reg(dev, 0x3D, 0x00));
-	CHECK(si443x_write_reg(dev, 0x3E, 0x09));
-	CHECK(si443x_write_reg(dev, 0x3F, 0x11));
-	CHECK(si443x_write_reg(dev, 0x40, 0x22));
-	CHECK(si443x_write_reg(dev, 0x41, 0x33));
-	CHECK(si443x_write_reg(dev, 0x42, 0x44));
-	CHECK(si443x_write_reg(dev, 0x43, 0xFF));
-	CHECK(si443x_write_reg(dev, 0x44, 0xFF));
-	CHECK(si443x_write_reg(dev, 0x45, 0xFF));
-	CHECK(si443x_write_reg(dev, 0x46, 0xFF));
-
-	CHECK(si443x_write_reg(dev, 0x58, 0x80));
-	CHECK(si443x_write_reg(dev, 0x69, 0x60));
-	CHECK(si443x_write_reg(dev, 0x6E, 0x4E));
-	CHECK(si443x_write_reg(dev, 0x6F, 0xA5));
-
-	CHECK(si443x_write_reg(dev, 0x70, 0x2C));
-	CHECK(si443x_write_reg(dev, 0x71, 0x22));
-	CHECK(si443x_write_reg(dev, 0x72, 0x5E));
-
-	CHECK(si443x_write_reg(dev, 0x75, 0x53));
-	CHECK(si443x_write_reg(dev, 0x76, 0x62));
-	CHECK(si443x_write_reg(dev, 0x77, 0x00));
-#endif
 
 	// enable receiver in multi packet FIFO mode
 	//TODO: use defines

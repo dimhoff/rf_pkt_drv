@@ -76,6 +76,13 @@ void sparse_buf_clear(sparse_buf_t *obj);
 int sparse_buf_write(sparse_buf_t *obj, size_t off, uint8_t val);
 
 /**
+ * Get pointer into buffer at offset
+ *
+ * @returns	A pointer into the buffer or NULL if offset is beyond size.
+ */
+static inline uint8_t *sparse_buf_at(sparse_buf_t *obj, size_t off);
+
+/**
  * Get buffer size
  */
 static inline size_t sparse_buf_size(const sparse_buf_t *obj);
@@ -115,6 +122,15 @@ size_t sparse_buf_valid_length(const sparse_buf_t *obj, size_t off);
  * Amount of bits in an unsigned int type
  */
 #define UINT_BIT_CNT (sizeof(unsigned int) * 8)
+
+static inline uint8_t *sparse_buf_at(sparse_buf_t *obj, size_t off)
+{
+	if (off >= obj->size) {
+		return NULL;
+	}
+
+	return &obj->values[off];
+}
 
 static inline size_t sparse_buf_size(const sparse_buf_t *obj)
 {
