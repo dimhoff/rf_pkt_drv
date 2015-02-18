@@ -47,7 +47,7 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 	// Open file
 	if ((fp = fopen(filename, "r")) == NULL) {
 		fprintf(stderr, "Unable to open file '%s': %s\n",
-				filename, strerror(errno));
+			filename, strerror(errno));
 		return -1;
 	}
 
@@ -64,7 +64,7 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 
 		if (*bp != '\n' && ! feof(fp)) {
 			fprintf(stderr, "%s:%u: Line too long\n",
-					filename, line_nr);
+				filename, line_nr);
 			goto err;
 		}
 
@@ -90,22 +90,22 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 			// WDS set format (only limited subset of format)
 			if (len != 7) {
 				fprintf(stderr, "%s:%u: "
-						"Invalid WDS line length\n",
-						filename, line_nr);
+					"Invalid WDS line length\n",
+					filename, line_nr);
 				goto err;
 			}
 			if (bp[1] != '2' || bp[2] != ' ') {
 				fprintf(stderr, "%s:%u: "
-						"Incorrect WDS format\n",
-						filename, line_nr);
+					"Incorrect WDS format\n",
+					filename, line_nr);
 				goto err;
 			}
 
 			r = dehexify(&bp[3], 2, bin);
 			if (r != 0) {
 				fprintf(stderr, "%s:%u: "
-						"Invalid hex encoding\n",
-						filename, line_nr);
+					"Invalid hex encoding\n",
+					filename, line_nr);
 				goto err;
 			}
 
@@ -119,22 +119,22 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 			// addr,value format
 			if (len != 5) {
 				fprintf(stderr, "%s:%u: "
-						"Invalid WDS line length\n",
-						filename, line_nr);
+					"Invalid WDS line length\n",
+					filename, line_nr);
 				goto err;
 			}
 			if (bp[2] != ' ') {
 				fprintf(stderr, "%s:%u: "
-						"Incorrect seperator\n",
-						filename, line_nr);
+					"Incorrect seperator\n",
+					filename, line_nr);
 				goto err;
 			}
 
 			r = dehexify(&bp[0], 1, &bin[0]);
 			if (r != 0) {
 				fprintf(stderr, "%s:%u: Invalid hex encoding "
-						"of address '%.2s'\n",
-						filename, line_nr, &bp[0]);
+					"of address '%.2s'\n",
+					filename, line_nr, &bp[0]);
 				goto err;
 			}
 			r = dehexify(&bp[3], 1, &bin[1]);
@@ -159,15 +159,15 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 
 		if (addr == 0x7F) {
 			fprintf(stderr, "%s:%u: "
-					"Illegal register address 0x7F\n",
-					filename, line_nr);
+				"Illegal register address 0x7F\n",
+				filename, line_nr);
 			goto err;
 		}
 
 		if (sparse_buf_write(regs, addr, val) != 0) {
 			fprintf(stderr, "%s:%u Unable to add register at "
-					"address %hhu to buffer\n",
-					filename, line_nr, addr);
+				"address %hhu to buffer\n",
+				filename, line_nr, addr);
 			goto err;
 		}
 	}

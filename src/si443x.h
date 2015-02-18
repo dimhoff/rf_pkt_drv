@@ -47,9 +47,11 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev);
 int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs);
 
 int si443x_read_reg(si443x_dev_t *dev, uint8_t addr, uint8_t *data);
-int si443x_read_regs(si443x_dev_t *dev, uint8_t addr, uint8_t *data, size_t len);
+int si443x_read_regs(si443x_dev_t *dev, uint8_t addr, uint8_t *data,
+		     size_t len);
 int si443x_write_reg(si443x_dev_t *dev, uint8_t addr, uint8_t data);
-int si443x_write_regs(si443x_dev_t *dev, uint8_t addr, const uint8_t *data, size_t len);
+int si443x_write_regs(si443x_dev_t *dev, uint8_t addr, const uint8_t *data,
+		      size_t len);
 
 void si443x_dump_status(si443x_dev_t *dev);
 

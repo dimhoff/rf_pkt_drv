@@ -132,7 +132,7 @@ END_TEST
 /**
  * Generate test suite for sparse buffer
  */
-Suite * sparse_buffer_suite(void)
+Suite *sparse_buffer_suite(void)
 {
 	Suite *s;
 	TCase *tc_create;

@@ -243,7 +243,7 @@ START_TEST(test_overflow_add)
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 0);
 	ck_assert(ring_buf_empty(&buf) == false);
 	ck_assert(memcmp(&data2[1], ring_buf_begin(&buf),
-			sizeof(data2) - 1) == 0);
+			 sizeof(data2) - 1) == 0);
 
 	ring_buf_destroy(&buf);
 }
@@ -280,7 +280,7 @@ START_TEST(test_overflow_add_eq_to_cap)
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 0);
 	ck_assert(ring_buf_empty(&buf) == false);
 	ck_assert(memcmp(&data2[0], ring_buf_begin(&buf),
-			sizeof(data2)) == 0);
+			 sizeof(data2)) == 0);
 
 	ring_buf_destroy(&buf);
 }
@@ -289,7 +289,7 @@ END_TEST
 /**
  * Generate test suite for ring buffer
  */
-Suite * ring_buf_suite(void)
+Suite *ring_buf_suite(void)
 {
 	Suite *s;
 	TCase *tc_create;

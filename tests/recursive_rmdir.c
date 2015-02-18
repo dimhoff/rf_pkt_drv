@@ -41,7 +41,7 @@
  * @see recursive_rmdir()
  */
 static int _recursive_rmdir_cb(const char *fpath, const struct stat *sb,
-		int typeflag, struct FTW *ftwbuf)
+			       int typeflag, struct FTW *ftwbuf)
 {
 	int err = -1;
 
@@ -53,7 +53,7 @@ static int _recursive_rmdir_cb(const char *fpath, const struct stat *sb,
 
 	if (err != 0) {
 		fprintf(stderr, "Failed to remove '%s': %s\n",
-				fpath, strerror(errno));
+			fpath, strerror(errno));
 		return -2;
 	}
 
@@ -71,12 +71,12 @@ int recursive_rmdir(const char *path)
 	int err;
 
 	err = nftw(path, _recursive_rmdir_cb, RECURSIVE_RMDIR_MAX_FD,
-			FTW_DEPTH | FTW_MOUNT | FTW_PHYS);
+		   FTW_DEPTH | FTW_MOUNT | FTW_PHYS);
 	if (err != 0) {
 		if (err != -2) {
 			fprintf(stderr, "Unable to recursively remove "
-					"'%s': %s\n",
-					path, strerror(errno));
+				"'%s': %s\n",
+				path, strerror(errno));
 		}
 		return -1;
 	}

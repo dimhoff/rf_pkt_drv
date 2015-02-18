@@ -163,8 +163,7 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	// Check FIFO over/underflow condition
 	si443x_read_reg(dev, DEVICE_STATUS, &val);
 	if (val & (DEVICE_STATUS_FFOVFL |
-			DEVICE_STATUS_FFUNFL))
-	{
+			DEVICE_STATUS_FFUNFL)) {
 		fprintf(stderr, "ERROR: Device "
 			"overflow/underflow (%.2x)\n", val);
 		goto err;
@@ -234,8 +233,8 @@ int main(int argc, char *argv[])
 			sock_path = optarg;
 			if (strlen(sock_path) >= sizeof(local.sun_path)+1) {
 				fprintf(stderr, "Socket path too long "
-						"(max=%zu)\n",
-						sizeof(local.sun_path)+1);
+					"(max=%zu)\n",
+					sizeof(local.sun_path)+1);
 				exit(EXIT_FAILURE);
 			}
 			break;
@@ -275,12 +274,12 @@ int main(int argc, char *argv[])
 
 	sigemptyset(&empty_mask);
 
-	if (signal (SIGINT, &terminate_cb) == SIG_IGN)
-		signal (SIGINT, SIG_IGN);
-	if (signal (SIGHUP, &terminate_cb) == SIG_IGN)
-		signal (SIGHUP, SIG_IGN);
-	if (signal (SIGTERM, &terminate_cb) == SIG_IGN)
-		signal (SIGTERM, SIG_IGN);
+	if (signal(SIGINT, &terminate_cb) == SIG_IGN)
+		signal(SIGINT, SIG_IGN);
+	if (signal(SIGHUP, &terminate_cb) == SIG_IGN)
+		signal(SIGHUP, SIG_IGN);
+	if (signal(SIGTERM, &terminate_cb) == SIG_IGN)
+		signal(SIGTERM, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
 
 	// Setup server socket
@@ -294,7 +293,8 @@ int main(int argc, char *argv[])
 	assert(strlen(sock_path) < sizeof(local.sun_path)+1);
 	strcpy(local.sun_path, sock_path);
 	unlink(local.sun_path);
-	if (bind(sock_fd, (struct sockaddr *)&local, strlen(local.sun_path) + sizeof(local.sun_family)) == -1) {
+	if (bind(sock_fd, (struct sockaddr *)&local,
+			strlen(local.sun_path) + sizeof(local.sun_family)) == -1) {
 		perror("bind");
 		retval = EXIT_FAILURE;
 		goto cleanup2;
@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
 
 		// Wait for events
 		r = pselect(nfds + 1, &rfds, &wfds, &efds, &timeout,
-			&empty_mask);
+			    &empty_mask);
 		if (r == -1 && errno != EINTR) {
 			perror("select()");
 			break;
@@ -411,7 +411,7 @@ int main(int argc, char *argv[])
 					printf("Write client\n");
 
 					wlen = write(client_fd, ring_buf_begin(&rx_data),
-							ring_buf_bytes_readable(&rx_data));
+						     ring_buf_bytes_readable(&rx_data));
 					if (wlen == -1) {
 						perror("Client write failure");
 						close(client_fd);

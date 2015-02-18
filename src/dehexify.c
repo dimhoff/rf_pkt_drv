@@ -42,29 +42,29 @@ static int dehex_nibble(unsigned char n)
 
 int dehexify(const char *in, size_t bytes, unsigned char *out)
 {
-        int i;
-        int x;
+	int i;
+	int x;
 
-        if (strlen(in) < bytes*2) {
-                return -1;
-        }
+	if (strlen(in) < bytes*2) {
+		return -1;
+	}
 
-        memset(out, 0, bytes);
-        for (i=0; i<bytes; i++) {
-                x = dehex_nibble(in[(i*2)]);
-                if (x < 0 || x > 15) {
-                        return -1;
+	memset(out, 0, bytes);
+	for (i=0; i<bytes; i++) {
+		x = dehex_nibble(in[(i*2)]);
+		if (x < 0 || x > 15) {
+			return -1;
 		}
-                out[i] = (x << 4);
+		out[i] = (x << 4);
 
-                x = dehex_nibble(in[(i*2)+1]);
-                if (x < 0 || x > 15) {
-                        return -1;
+		x = dehex_nibble(in[(i*2)+1]);
+		if (x < 0 || x > 15) {
+			return -1;
 		}
-                out[i] |= x;
-        }
+		out[i] |= x;
+	}
 
-        return 0;
+	return 0;
 }
 
 

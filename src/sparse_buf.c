@@ -60,8 +60,8 @@ int sparse_buf_init(sparse_buf_t *obj, size_t size)
 	obj->size = size;
 	obj->values = (uint8_t *) malloc(size);
 	obj->valid = (unsigned int *)
-		calloc((size + UINT_BIT_CNT - 1) / UINT_BIT_CNT,
-			sizeof(unsigned int));
+		     calloc((size + UINT_BIT_CNT - 1) / UINT_BIT_CNT,
+			    sizeof(unsigned int));
 
 	if (obj->values == NULL || obj->valid == NULL) {
 		free(obj->values);
@@ -82,8 +82,8 @@ void sparse_buf_destroy(sparse_buf_t *obj)
 void sparse_buf_clear(sparse_buf_t *obj)
 {
 	memset(obj->valid, 0,
-		((obj->size + UINT_BIT_CNT - 1) / UINT_BIT_CNT) *
-		sizeof(unsigned int));
+	       ((obj->size + UINT_BIT_CNT - 1) / UINT_BIT_CNT) *
+	       sizeof(unsigned int));
 }
 
 int sparse_buf_write(sparse_buf_t *obj, size_t off, uint8_t val)

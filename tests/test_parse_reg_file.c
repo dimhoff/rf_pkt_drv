@@ -64,9 +64,9 @@ START_TEST(test_simple_addr_val)
 	// Create reg file
 	assert(sparse_buf_init(&buf, 0x80) == 0);
 	test_filename = create_config(
-		"00 11\n"
-		"01 22\n"
-		);
+				"00 11\n"
+				"01 22\n"
+			);
 	assert(test_filename != NULL);
 
 	// Parse reg file
@@ -94,9 +94,9 @@ START_TEST(test_simple_wds)
 	// Create reg file
 	assert(sparse_buf_init(&buf, 0x80) == 0);
 	test_filename = create_config(
-		"S2 8011\n"
-		"s2 8122\n"
-		);
+				"S2 8011\n"
+				"s2 8122\n"
+			);
 	assert(test_filename != NULL);
 
 	// Parse reg file
@@ -164,7 +164,7 @@ END_TEST
 /**
  * Generate test suite for sparse buffer
  */
-Suite * parse_reg_file_suite(void)
+Suite *parse_reg_file_suite(void)
 {
 	Suite *s;
 	TCase *tc_simple;
@@ -181,7 +181,7 @@ Suite * parse_reg_file_suite(void)
 	// Valid configs
 	tc_valid = tcase_create("valid");
 	tcase_add_loop_test(tc_valid, loop_test_valid_configs, 0,
-			sizeof(valid_configs) / sizeof(valid_configs[0]));
+			    sizeof(valid_configs) / sizeof(valid_configs[0]));
 	suite_add_tcase(s, tc_valid);
 
 	return s;

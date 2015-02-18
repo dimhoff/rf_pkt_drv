@@ -44,14 +44,16 @@
 
 #include "si443x.h"
 
-static int _si443x_spi_transfer(int fd, bool write, uint8_t addr, uint8_t *data, size_t len)
+static int _si443x_spi_transfer(int fd, bool write, uint8_t addr,
+				uint8_t *data, size_t len)
 {
 	struct spi_ioc_transfer	xfer[2];
 	int err;
 
 	assert((addr & 0x80) == 0);
 	assert(
-		((addr == 0x7f) && (len <= 64)) ||	// addr 0x7f gives access to read/write FIFO's
+		// addr 0x7f gives access to read/write FIFO's
+		((addr == 0x7f) && (len <= 64)) ||
 		((len < 0x7f) && (addr <= 0x7f - len))
 	);
 
@@ -97,7 +99,8 @@ int si443x_write_reg(si443x_dev_t *dev, uint8_t addr, uint8_t data)
 	return _si443x_spi_transfer(dev->fd, true, addr, &data, 1);
 }
 
-int si443x_write_regs(si443x_dev_t *dev, uint8_t addr, const uint8_t *data, size_t len)
+int si443x_write_regs(si443x_dev_t *dev, uint8_t addr,
+		      const uint8_t *data, size_t len)
 {
 	return _si443x_spi_transfer(dev->fd, true, addr, (uint8_t *) data, len);
 }
@@ -133,8 +136,8 @@ int si443x_reset(si443x_dev_t *dev)
 	uint8_t val;
 
 	err = si443x_write_reg(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
-			OPERATING_MODE_AND_FUNCTION_CONTROL_1_XTON |
-			OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES);
+			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_XTON |
+			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES);
 	if (err != 0) {
 		return err;
 	}
@@ -156,15 +159,15 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 
 	// Get current control values
 	err = si443x_read_regs(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
-				ctrl, 2);
+			       ctrl, 2);
 	if (err != 0)
 		return err;
 
 	// Disable RX mode
 	if (ctrl[0] & OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON) {
 		err = si443x_write_reg(dev,
-			OPERATING_MODE_AND_FUNCTION_CONTROL_1,
-			ctrl[0] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON);
+				       OPERATING_MODE_AND_FUNCTION_CONTROL_1,
+				       ctrl[0] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON);
 		if (err != 0)
 			return err;
 		//TODO: verify that disabling RX stops current packet reception
@@ -172,21 +175,21 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 
 	// Clear RX FIFO
 	err = si443x_write_reg(dev,
-		OPERATING_MODE_AND_FUNCTION_CONTROL_2,
-		ctrl[1] | OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
+			       OPERATING_MODE_AND_FUNCTION_CONTROL_2,
+			       ctrl[1] | OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
 	if (err != 0)
 		return err;
 
 	err = si443x_write_reg(dev,
-		OPERATING_MODE_AND_FUNCTION_CONTROL_2,
-		ctrl[1] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
+			       OPERATING_MODE_AND_FUNCTION_CONTROL_2,
+			       ctrl[1] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
 	if (err != 0)
 		return err;
 
 	// Re-enable RX mode
 	if (ctrl[0] & OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON) {
 		err = si443x_write_reg(dev,
-			OPERATING_MODE_AND_FUNCTION_CONTROL_1, ctrl[0]);
+				       OPERATING_MODE_AND_FUNCTION_CONTROL_1, ctrl[0]);
 		if (err != 0)
 			return err;
 	}

@@ -130,7 +130,7 @@ END_TEST
 /**
  * Generate test suite for ring buffer
  */
-Suite * dehexify_suite(void)
+Suite *dehexify_suite(void)
 {
 	Suite *s;
 	TCase *tc_basic;
