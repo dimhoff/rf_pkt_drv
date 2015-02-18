@@ -62,7 +62,7 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 
 		line_nr++;
 
-		if (*bp != '\n') {
+		if (*bp != '\n' && ! feof(fp)) {
 			fprintf(stderr, "%s:%u: Line too long\n",
 					filename, line_nr);
 			goto err;
@@ -123,7 +123,7 @@ int parse_reg_file(const char *filename, sparse_buf_t *regs)
 						filename, line_nr);
 				goto err;
 			}
-			if (strchr(" \t,;:", bp[2]) == NULL) {
+			if (bp[2] != ' ') {
 				fprintf(stderr, "%s:%u: "
 						"Incorrect seperator\n",
 						filename, line_nr);

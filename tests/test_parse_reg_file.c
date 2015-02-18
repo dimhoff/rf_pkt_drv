@@ -74,10 +74,10 @@ START_TEST(test_simple_addr_val)
 
 	// Verify read data
 	ck_assert(sparse_buf_is_valid(&buf, 0) == true);
+	ck_assert_uint_eq(*sparse_buf_at(&buf, 0), 0x11);
 	ck_assert(sparse_buf_is_valid(&buf, 1) == true);
+	ck_assert_uint_eq(*sparse_buf_at(&buf, 1), 0x22);
 	ck_assert_uint_eq(sparse_buf_next_valid(&buf, 2), SPARSE_BUF_OFF_END);
-
-	// TODO: check values
 
 	sparse_buf_destroy(&buf);
 }
@@ -95,7 +95,7 @@ START_TEST(test_simple_wds)
 	assert(sparse_buf_init(&buf, 0x80) == 0);
 	test_filename = create_config(
 		"S2 8011\n"
-		"S2 8122\n"
+		"s2 8122\n"
 		);
 	assert(test_filename != NULL);
 
@@ -104,21 +104,61 @@ START_TEST(test_simple_wds)
 
 	// Verify read data
 	ck_assert(sparse_buf_is_valid(&buf, 0) == true);
+	ck_assert_uint_eq(*sparse_buf_at(&buf, 0), 0x11);
 	ck_assert(sparse_buf_is_valid(&buf, 1) == true);
+	ck_assert_uint_eq(*sparse_buf_at(&buf, 1), 0x22);
 	ck_assert_uint_eq(sparse_buf_next_valid(&buf, 2), SPARSE_BUF_OFF_END);
-
-	// TODO: check values
 
 	sparse_buf_destroy(&buf);
 }
 END_TEST
 
-//TODO: unit test for dehexify()
-//TODO: case insensitive
-//TODO: addr,value seperators
-//TODO: leading, trailing space
-//TODO: empty lines
-//TODO: missing '\n' at last line
+/**
+ * Test various valid configs
+ */
+const char *valid_configs[] = {
+	// 0 - empty line
+	"00 11\n"
+	"\n"
+	"01 22\n"
+	, // 1 - empty line with space
+	"00 11\n"
+	" \t\n"
+	"01 22\n"
+	, // 2 - Leading space
+	"  00 11\n"
+	"\t\t01 22\n"
+	, // 3 - Trailing space
+	"00 11  \n"
+	"01 22\t\t\n"
+	, // 4 - Missing new line at end of file
+	"00 11\n"
+	"01 22"
+};
+START_TEST(loop_test_valid_configs)
+{
+	const char *test_filename = NULL;
+	sparse_buf_t buf;
+
+	// Create reg file
+	assert(sparse_buf_init(&buf, 0x80) == 0);
+	test_filename = create_config(valid_configs[_i]);
+	assert(test_filename != NULL);
+
+	// Parse reg file
+	ck_assert_int_eq(parse_reg_file(test_filename, &buf), 0);
+
+	// Verify read data
+	ck_assert(sparse_buf_is_valid(&buf, 0) == true);
+	ck_assert_uint_eq(*sparse_buf_at(&buf, 0), 0x11);
+	ck_assert(sparse_buf_is_valid(&buf, 1) == true);
+	ck_assert_uint_eq(*sparse_buf_at(&buf, 1), 0x22);
+	ck_assert_uint_eq(sparse_buf_next_valid(&buf, 2), SPARSE_BUF_OFF_END);
+
+	sparse_buf_destroy(&buf);
+}
+END_TEST
+
 //TODO: broken configs: line length
 
 /**
@@ -128,6 +168,7 @@ Suite * parse_reg_file_suite(void)
 {
 	Suite *s;
 	TCase *tc_simple;
+	TCase *tc_valid;
 
 	s = suite_create("parse_reg_file");
 
@@ -136,6 +177,12 @@ Suite * parse_reg_file_suite(void)
 	tcase_add_test(tc_simple, test_simple_addr_val);
 	tcase_add_test(tc_simple, test_simple_wds);
 	suite_add_tcase(s, tc_simple);
+
+	// Valid configs
+	tc_valid = tcase_create("valid");
+	tcase_add_loop_test(tc_valid, loop_test_valid_configs, 0,
+			sizeof(valid_configs) / sizeof(valid_configs[0]));
+	suite_add_tcase(s, tc_valid);
 
 	return s;
 }
