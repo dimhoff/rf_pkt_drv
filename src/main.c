@@ -26,6 +26,8 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -50,8 +52,6 @@
 #include "parse_reg_file.h"
 #include "si443x.h"
 
-#define DEFAULT_DEV_PATH "/dev/spidev0.0"
-#define DEFAULT_SOCK_PATH "/tmp/si443x.sock"
 #define RING_BUFFER_SIZE 4096
 
 unsigned int verbose = 0;
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 {
 	char *dev_path = DEFAULT_DEV_PATH;
 	char *sock_path = DEFAULT_SOCK_PATH;
-	char *cfg_path = NULL;
+	char *cfg_path = DEFAULT_CFG_PATH;
 
 	int opt;
 	int retval = EXIT_SUCCESS;
