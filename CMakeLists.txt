@@ -1,8 +1,9 @@
-project(si443x_drv)
-
 cmake_minimum_required(VERSION 2.8.8)
+project(si443x_drv C)
+
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# Build Options
 option(BUILD_TESTS "Build Unit Tests (Requires Check)" OFF)
 
 set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} -Wall)
