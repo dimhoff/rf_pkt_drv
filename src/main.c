@@ -107,11 +107,10 @@ fail:
 int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 {
 	uint8_t buf[64];
+	uint8_t hdrlen;
 	uint8_t pktlen;
 	uint8_t val;
 	int i;
-
-	//TODO: Make processing more dynamic based on configuration registers.(eg. fixpktlen, hdrlen, etc.)
 
 	// Check if packet available
 	si443x_read_reg(dev, DEVICE_STATUS, &val);
@@ -131,29 +130,38 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	}
 
 	// Read Header
-	si443x_read_regs(dev, FIFO_ACCESS, buf, 3);
-	if (verbose) {
-		printf("Received header: \n");
-		for (i = 0; i < 3; i++) {
-			printf("%.2x ", buf[i]);
-		}
-		putchar('\n');
-		si443x_dump_status(dev);
+	hdrlen = dev->txhdlen;
+	if (dev->fixpklen == 0) {
+		hdrlen += 1;
 	}
-	// TODO: Make configurable hdrlen & fixpktlen
-	pktlen = buf[2];
-	if (pktlen > SI443X_FIFO_SIZE - 3) {
-		fprintf(stderr, "ERROR: Packet len too big (%.2x)\n",
-			pktlen);
-		goto err;
+	if (hdrlen) {
+		si443x_read_regs(dev, FIFO_ACCESS, buf, hdrlen);
+		if (verbose) {
+			printf("Received header: \n");
+			for (i = 0; i < hdrlen; i++) {
+				printf("%.2x ", buf[i]);
+			}
+			putchar('\n');
+			si443x_dump_status(dev);
+		}
+	}
+	if (dev->fixpklen == 0) {
+		pktlen = buf[hdrlen - 1];
+		if (pktlen > SI443X_FIFO_SIZE - 3) {
+			fprintf(stderr, "ERROR: Packet len too big (%.2x)\n",
+				pktlen);
+			goto err;
+		}
+	} else {
+		pktlen = dev->fixpklen;
 	}
 
 	// Read Payload
-	si443x_read_regs(dev, FIFO_ACCESS, &buf[3], pktlen);
+	si443x_read_regs(dev, FIFO_ACCESS, &buf[hdrlen], pktlen);
 	if (verbose) {
 		printf("Received packet: \n");
 		for (i = 0; i < pktlen; i++) {
-			printf("%.2x ", buf[i+3]);
+			printf("%.2x ", buf[hdrlen + i]);
 		}
 		putchar('\n');
 

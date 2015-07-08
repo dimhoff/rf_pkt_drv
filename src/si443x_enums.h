@@ -55,7 +55,7 @@ enum {
 	OOK_COUNTER_VALUE_1                         = 0x2C,
 	OOK_COUNTER_VALUE_2                         = 0x2D,
 	SLICER_PEAK_HOLD                            = 0x2E,
-//  RESERVED                                    = 0x2F,
+//	RESERVED                                    = 0x2F,
 	DATA_ACCESS_CONTROL                         = 0x30,
 	EXMAC_STATUS                                = 0x31,
 	HEADER_CONTROL_1                            = 0x32,
@@ -139,6 +139,15 @@ enum {
 };
 
 enum {
+	DEVICE_TYPE_EZRADIOPRO = 0x08,
+};
+
+enum {
+	DEVICE_VERSION_SI443X_B1 = 0x06,
+	DEVICE_VERSION_SI100X_E  = 0x07,
+};
+
+enum {
 	DEVICE_STATUS_FREQERR = 0x08,
 	DEVICE_STATUS_HEADERR = 0x10,
 	DEVICE_STATUS_RXFFEM  = 0x20,
@@ -186,7 +195,17 @@ enum {
 	OPERATING_MODE_AND_FUNCTION_CONTROL_2_RXMPK   = 0x10
 };
 
-
+enum {
+	HEADER_CONTROL_2_PREALEN_8	= 0x01,
+	HEADER_CONTROL_2_SYNCLEN	= 0x06,
+	HEADER_CONTROL_2_SYNCLEN_MASK	= 0x03,
+	HEADER_CONTROL_2_SYNCLEN_SHIFT	= 1,
+	HEADER_CONTROL_2_FIXPKLEN  	= 0x08,
+	HEADER_CONTROL_2_HDLEN		= 0x70,
+	HEADER_CONTROL_2_HDLEN_MASK	= 0x07,
+	HEADER_CONTROL_2_HDLEN_SHIFT	= 4,
+	HEADER_CONTROL_2_SKIPSYN	= 0x80,
+};
 
 /*
 enum RFM22B_Modulation_Type {

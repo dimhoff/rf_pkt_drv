@@ -84,6 +84,29 @@ static int _si443x_spi_transfer(int fd, bool write, uint8_t addr,
 	return 0;
 }
 
+int _si443x_update_config(si443x_dev_t *dev)
+{
+	uint8_t val;
+	// FIXME: if HEADER_CONTROL_2 or TRANSMIT_PACKET_LENGTH are written
+	// directly with write_reg() or write_regs() than the configuration
+	// isn't updated.
+
+	if (si443x_read_reg(dev, HEADER_CONTROL_2, &val) != 0) {
+		return -1;
+	}
+
+	dev->txhdlen = (val >> HEADER_CONTROL_2_HDLEN_SHIFT) & HEADER_CONTROL_2_HDLEN_MASK;
+	if ((val & HEADER_CONTROL_2_FIXPKLEN)) {
+		if (si443x_read_reg(dev, TRANSMIT_PACKET_LENGTH, &dev->fixpklen) != 0) {
+			return -1;
+		}
+	} else {
+		dev->fixpklen = 0;
+	}
+
+	return 0;
+}
+
 int si443x_read_reg(si443x_dev_t *dev, uint8_t addr, uint8_t *data)
 {
 	return _si443x_spi_transfer(dev->fd, false, addr, data, 1);
@@ -108,6 +131,7 @@ int si443x_write_regs(si443x_dev_t *dev, uint8_t addr,
 int si443x_open(si443x_dev_t *dev, const char *filename)
 {
 	int fd;
+	uint8_t val;
 
 	fd = open(filename, O_RDWR);
 	if (fd == -1) {
@@ -115,6 +139,20 @@ int si443x_open(si443x_dev_t *dev, const char *filename)
 	}
 
 	dev->fd = fd;
+
+	if (si443x_read_reg(dev, DEVICE_TYPE, &val) != 0) {
+		si443x_close(dev);
+		return -1;
+	}
+	if (val != DEVICE_TYPE_EZRADIOPRO) {
+		si443x_close(dev);
+		return -1;
+	}
+
+	if (_si443x_update_config(dev) != 0) {
+		si443x_close(dev);
+		return -1;
+	}
 
 	return 0;
 }
@@ -143,6 +181,7 @@ int si443x_reset(si443x_dev_t *dev)
 	}
 
 	do {
+		//TODO: add timeout
 		err = si443x_read_reg(dev, INTERRUPT_STATUS_2, &val);
 		if (err != 0) {
 			return err;
@@ -218,7 +257,8 @@ int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs)
 
 		off += len;
 	}
-	return 0;
+
+	return _si443x_update_config(dev);
 }
 
 void si443x_close(si443x_dev_t *dev)

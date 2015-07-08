@@ -36,6 +36,8 @@
 
 typedef struct {
 	int fd;
+	uint8_t txhdlen;
+	uint8_t fixpklen;
 } si443x_dev_t;
 
 int si443x_open(si443x_dev_t *dev, const char *filename);
