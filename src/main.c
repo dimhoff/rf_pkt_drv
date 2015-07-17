@@ -178,8 +178,8 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	}
 
 	// Add to ring buffer
-	if (ring_buf_bytes_available(rbuf) >= 3 + pktlen)
-		ring_buf_add(rbuf, buf, 3 + pktlen);
+	if (ring_buf_bytes_available(rbuf) >= hdrlen + pktlen)
+		ring_buf_add(rbuf, buf, hdrlen + pktlen);
 
 	return 0;
 err:
