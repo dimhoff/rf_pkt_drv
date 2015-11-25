@@ -27,6 +27,7 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "config.h"
+#include "version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,7 +67,7 @@ void terminate_cb(int signum)
 void usage(const char *name)
 {
 	fprintf(stderr,
-		"Si443x User Space driver\n"
+		"Si443x User Space driver - " VERSION "\n"
 		"Usage: %s [-v] [-d <device>] [-c <config>] [-s <socket>]\n"
 		"\n"
 		"Options:\n"

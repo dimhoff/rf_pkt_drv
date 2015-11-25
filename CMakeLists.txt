@@ -14,6 +14,8 @@ set(DEFAULT_CFG_PATH "/etc/si443x_regs.cfg" CACHE STRING "Default register confi
 configure_file(config.h.in "${PROJECT_BINARY_DIR}/config.h")
 include_directories("${PROJECT_BINARY_DIR}")
 
+include(GitGetVersion)
+
 add_subdirectory(src)
 if (BUILD_TESTS)
 	enable_testing()
