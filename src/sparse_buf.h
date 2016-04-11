@@ -1,7 +1,7 @@
 /**
  * sparse_buf.h - Buffer in which only parts of the address space is valid
  *
- * Copyright (c) 2015, David Imhoff <dimhoff_devel@xs4all.nl>
+ * Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

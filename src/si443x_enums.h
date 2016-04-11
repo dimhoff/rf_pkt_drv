@@ -2,7 +2,7 @@
  * si443x_enums.h - Defines for register addresses/masks
  *
  * Original code from rfm22b_enums.h in https://github.com/omcaree/rfm22b
- * Modified 2015, David Imhoff <dimhoff_devel@xs4all.nl>
+ * Modified 2015, David Imhoff <dimhoff.devel@gmail.com>
  */
 #ifndef __RFM22B_ENUMS_H__
 #define __RFM22B_ENUMS_H__

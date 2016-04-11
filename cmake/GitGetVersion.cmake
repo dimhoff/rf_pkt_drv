@@ -20,7 +20,7 @@
 #   add_dependencies(your_main_target git_version)
 #
 #=============================================================================
-# Copyright (c) 2015, David Imhoff <dimhoff_devel@xs4all.nl>
+# Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above

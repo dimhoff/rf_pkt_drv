@@ -1,7 +1,7 @@
 /**
  * test_sparse_buf.c - Unit test for sparse_buf.c
  *
- * Copyright (c) 2015, David Imhoff <dimhoff_devel@xs4all.nl>
+ * Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -1,7 +1,7 @@
 /**
  * si443x.h - Si443x interface functions
  *
- * Copyright (c) 2015, David Imhoff <dimhoff_devel@xs4all.nl>
+ * Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

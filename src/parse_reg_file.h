@@ -1,7 +1,7 @@
 /**
  * parse_reg_file.h - Parse file containing Si443x register configuration
  *
- * Copyright (c) 2015, David Imhoff <dimhoff_devel@xs4all.nl>
+ * Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
