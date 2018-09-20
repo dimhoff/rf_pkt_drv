@@ -327,16 +327,6 @@ int main(int argc, char *argv[])
 		goto cleanup2;
 	}
 
-/*
-	si443x_read_reg(&dev, DEVICE_TYPE, &val);
-	if (verbose)
-		printf("Device Type: %.2x\n", val);
-	si443x_read_reg(&dev, DEVICE_VERSION, &val);
-	if (verbose)
-		printf("Device Version: %.2x\n", val);
-	//TODO: check DEVICE_TYPE/VERSION
-*/
-
 	if (initialize_receiver(&dev, &regs) != 0) {
 		fprintf(stderr, "Failed to initialize Si443x device\n");
 		goto cleanup2;
@@ -359,6 +349,7 @@ int main(int argc, char *argv[])
 				FD_SET(client_fd, &wfds);
 			FD_SET(client_fd, &rfds);
 		}
+		// TODO: interrupt line should be connected to GPIO, and gpio file handle should be in select
 
 		timeout.tv_sec = 1;
 		timeout.tv_nsec = 0;
@@ -412,6 +403,7 @@ int main(int argc, char *argv[])
 						client_fd = -1;
 						continue;
 					}
+					// TODO: do something with the received data....
 					printf("Read client %zd bytes\n", rlen);
 				}
 				if (FD_ISSET(client_fd, &wfds)) {
