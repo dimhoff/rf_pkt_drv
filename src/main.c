@@ -222,6 +222,7 @@ int main(int argc, char *argv[])
 	si443x_dev_t dev;
 
 	ring_buf_t rx_data;
+	ring_buf_t tx_data;
 	sparse_buf_t regs;
 
 	//TODO: split into smaller functions!!!
@@ -299,6 +300,7 @@ int main(int argc, char *argv[])
 
 	// Initialize buffers
 	ring_buf_init(&rx_data, RING_BUFFER_SIZE);
+	ring_buf_init(&tx_data, RING_BUFFER_SIZE);
 
 	// Setup server socket
 	if ((sock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
@@ -354,7 +356,9 @@ int main(int argc, char *argv[])
 			if (! ring_buf_empty(&rx_data)) {
 				FD_SET(client_fd, &wfds);
 			}
-			FD_SET(client_fd, &rfds);
+			if (! ring_buf_full(&tx_data)) {
+				FD_SET(client_fd, &rfds);
+			}
 		}
 		// TODO: interrupt line should be connected to GPIO, and gpio file handle should be in select
 
@@ -394,12 +398,19 @@ int main(int argc, char *argv[])
 				}
 				printf("Accepted new client connection\n");
 				ring_buf_clear(&rx_data);
+				ring_buf_clear(&tx_data);
 			} else if (client_fd != -1) {
 				if (FD_ISSET(client_fd, &rfds)) {
 					// Read client socket
 					ssize_t rlen;
-					char rdbuf[1024];
-					rlen = read(client_fd, rdbuf, sizeof(rdbuf));
+					uint8_t rdbuf[1024];
+
+					// TODO: loop to read every thing till buffer is full?
+					rlen = ring_buf_bytes_free(&tx_data);
+					if (rlen > sizeof(rdbuf)) {
+						rlen = sizeof(rdbuf);
+					}
+					rlen = read(client_fd, rdbuf, rlen);
 					if (rlen <= 0) {
 						if (rlen < 0) {
 							perror("Client read failure");
@@ -410,8 +421,11 @@ int main(int argc, char *argv[])
 						client_fd = -1;
 						continue;
 					}
-					// TODO: do something with the received data....
-					printf("Read client %zd bytes\n", rlen);
+
+					ring_buf_add(&tx_data, rdbuf, rlen);
+					if (verbose) {
+						printf("Read client %zd bytes\n", rlen);
+					}
 				}
 				if (FD_ISSET(client_fd, &wfds)) {
 					// Write client socket
@@ -447,6 +461,7 @@ cleanup2:
 	}
 
 	ring_buf_destroy(&rx_data);
+	ring_buf_destroy(&tx_data);
 
 	return retval;
 }
