@@ -40,7 +40,7 @@ START_TEST(test_create)
 	ring_buf_init(&buf, 4);
 	ck_assert_uint_eq(ring_buf_size(&buf), 4);
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 0);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 3);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 3);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 0);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 3);
 	ck_assert(ring_buf_empty(&buf) == true);
@@ -57,7 +57,7 @@ START_TEST(test_simple_add)
 	ring_buf_add(&buf, data, sizeof(data));
 	ck_assert_uint_eq(ring_buf_size(&buf), 4);
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 1);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 2);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 2);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 1);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 2);
 	ck_assert(ring_buf_empty(&buf) == false);
@@ -77,7 +77,7 @@ START_TEST(test_simple_full_consume)
 
 	ck_assert_uint_eq(ring_buf_size(&buf), 4);
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 0);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 3);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 3);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 0);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 3);
 	ck_assert(ring_buf_empty(&buf) == true);
@@ -97,7 +97,7 @@ START_TEST(test_simple_partial_consume)
 
 	ck_assert_uint_eq(ring_buf_size(&buf), 4);
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 1);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 2);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 2);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 1);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 2);
 	ck_assert(ring_buf_empty(&buf) == false);
@@ -118,7 +118,7 @@ START_TEST(test_clear)
 
 	ck_assert_uint_eq(ring_buf_size(&buf), 4);
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 0);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 3);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 3);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 0);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 3);
 	ck_assert(ring_buf_empty(&buf) == true);
@@ -151,7 +151,7 @@ START_TEST(test_wrap)
 	ring_buf_add(&buf, data2, sizeof(data2));
 
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 3);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 1);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 1);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 2);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 1);
 	ck_assert(ring_buf_empty(&buf) == false);
@@ -164,7 +164,7 @@ START_TEST(test_wrap)
 	ring_buf_consume(&buf, 2);
 
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), 1);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 3);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 3);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 1);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 3);
 	ck_assert(ring_buf_empty(&buf) == false);
@@ -200,7 +200,7 @@ START_TEST(test_overflow)
 	ring_buf_add(&buf, data2, sizeof(data2));
 
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), queue_size - 1);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 0);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 0);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), 3);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 0);
 	ck_assert(ring_buf_empty(&buf) == false);
@@ -238,7 +238,7 @@ START_TEST(test_overflow_add)
 	ring_buf_add(&buf, data2, sizeof(data2));
 
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), queue_size - 1);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 0);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 0);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), sizeof(data2) - 1);
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 0);
 	ck_assert(ring_buf_empty(&buf) == false);
@@ -275,7 +275,7 @@ START_TEST(test_overflow_add_eq_to_cap)
 	ring_buf_add(&buf, data2, sizeof(data2));
 
 	ck_assert_uint_eq(ring_buf_bytes_used(&buf), queue_size - 1);
-	ck_assert_uint_eq(ring_buf_bytes_available(&buf), 0);
+	ck_assert_uint_eq(ring_buf_bytes_free(&buf), 0);
 	ck_assert_uint_eq(ring_buf_bytes_readable(&buf), sizeof(data2));
 	ck_assert_uint_eq(ring_buf_bytes_writable(&buf), 0);
 	ck_assert(ring_buf_empty(&buf) == false);

@@ -102,7 +102,7 @@ void ring_buf_clear(ring_buf_t *obj);
 uint8_t *ring_buf_begin(ring_buf_t *obj);
 
 size_t ring_buf_size(ring_buf_t *obj);
-size_t ring_buf_bytes_available(const ring_buf_t *obj);
+size_t ring_buf_bytes_free(const ring_buf_t *obj);
 size_t ring_buf_bytes_used(const ring_buf_t *obj);
 size_t ring_buf_bytes_readable(const ring_buf_t *obj);
 size_t ring_buf_bytes_writable(const ring_buf_t *obj);

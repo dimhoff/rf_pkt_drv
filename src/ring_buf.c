@@ -52,7 +52,7 @@ void ring_buf_add(ring_buf_t *obj, const uint8_t *data, size_t len)
 		obj->roff = 0;
 	} else {
 		// Make sure there is enough space
-		const size_t available = ring_buf_bytes_available(obj);
+		const size_t available = ring_buf_bytes_free(obj);
 		if (len > available) {
 			ring_buf_consume(obj, len - available);
 		}
@@ -93,7 +93,7 @@ size_t ring_buf_size(ring_buf_t *obj)
 	return obj->size;
 }
 
-size_t ring_buf_bytes_available(const ring_buf_t *obj)
+size_t ring_buf_bytes_free(const ring_buf_t *obj)
 {
 	return obj->size - ring_buf_bytes_used(obj) - 1;
 }
