@@ -113,14 +113,17 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	uint8_t val;
 	int i;
 
+	// TODO: check for errors...
+
 	// Check if packet available
 	si443x_read_reg(dev, DEVICE_STATUS, &val);
 	if ((val & DEVICE_STATUS_RXFFEM)) {
 		return 0;
 	}
 
-	if (verbose)
+	if (verbose) {
 		si443x_dump_status(dev);
+	}
 
 	// Wait till done receiving current packet
 	//NOTE: DEVICE_STATUS.RXFFEM is also != 1 for partial packets!
@@ -151,7 +154,7 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 		if (pktlen > SI443X_FIFO_SIZE - 3) {
 			fprintf(stderr, "ERROR: Packet len too big (%.2x)\n",
 				pktlen);
-			goto err;
+			goto fail;
 		}
 	} else {
 		pktlen = dev->fixpklen;
@@ -175,19 +178,21 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 			DEVICE_STATUS_FFUNFL)) {
 		fprintf(stderr, "ERROR: Device "
 			"overflow/underflow (%.2x)\n", val);
-		goto err;
+		goto fail;
 	}
 
 	// Add to ring buffer
-	if (ring_buf_bytes_available(rbuf) >= hdrlen + pktlen)
+	if (ring_buf_bytes_available(rbuf) >= hdrlen + pktlen) {
 		ring_buf_add(rbuf, buf, hdrlen + pktlen);
+	}
 
 	return 0;
-err:
+fail:
 	// Error Recovery
 	//TODO: verify SPI is still working
-	if (verbose)
+	if (verbose) {
 		printf("resetting RX fifo\n");
+	}
 	si443x_reset_rx_fifo(dev);
 	return -1;
 }
@@ -199,7 +204,7 @@ int main(int argc, char *argv[])
 	char *cfg_path = DEFAULT_CFG_PATH;
 
 	int opt;
-	int retval = EXIT_SUCCESS;
+	int retval = EXIT_FAILURE;
 	int r;
 
 	int sock_fd = -1;
@@ -218,9 +223,6 @@ int main(int argc, char *argv[])
 
 	ring_buf_t rx_data;
 	sparse_buf_t regs;
-
-	ring_buf_init(&rx_data, RING_BUFFER_SIZE);
-	sparse_buf_init(&regs, 0x80);
 
 	//TODO: split into smaller functions!!!
 
@@ -267,6 +269,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	sparse_buf_init(&regs, 0x80);
 	if (parse_reg_file(cfg_path, &regs) != 0) {
 		exit(EXIT_FAILURE);
 	}
@@ -283,18 +286,23 @@ int main(int argc, char *argv[])
 
 	sigemptyset(&empty_mask);
 
-	if (signal(SIGINT, &terminate_cb) == SIG_IGN)
+	if (signal(SIGINT, &terminate_cb) == SIG_IGN) {
 		signal(SIGINT, SIG_IGN);
-	if (signal(SIGHUP, &terminate_cb) == SIG_IGN)
+	}
+	if (signal(SIGHUP, &terminate_cb) == SIG_IGN) {
 		signal(SIGHUP, SIG_IGN);
-	if (signal(SIGTERM, &terminate_cb) == SIG_IGN)
+	}
+	if (signal(SIGTERM, &terminate_cb) == SIG_IGN) {
 		signal(SIGTERM, SIG_IGN);
+	}
 	signal(SIGPIPE, SIG_IGN);
+
+	// Initialize buffers
+	ring_buf_init(&rx_data, RING_BUFFER_SIZE);
 
 	// Setup server socket
 	if ((sock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
-		retval = EXIT_FAILURE;
 		goto cleanup2;
 	}
 
@@ -305,19 +313,16 @@ int main(int argc, char *argv[])
 	if (bind(sock_fd, (struct sockaddr *)&local,
 			strlen(local.sun_path) + sizeof(local.sun_family)) == -1) {
 		perror("bind");
-		retval = EXIT_FAILURE;
 		goto cleanup2;
 	}
 
 	if (listen(sock_fd, 5) == -1) {
 		perror("listen");
-		retval = EXIT_FAILURE;
 		goto cleanup2;
 	}
 
 	if (chmod(sock_path, 0777) != 0) {
 		perror("chmod");
-		retval = EXIT_FAILURE;
 		goto cleanup2;
 	}
 
@@ -343,10 +348,12 @@ int main(int argc, char *argv[])
 		FD_SET(sock_fd, &rfds);
 
 		if (client_fd != -1) {
-			if (client_fd > nfds)
+			if (client_fd > nfds) {
 				nfds = client_fd;
-			if (! ring_buf_empty(&rx_data))
+			}
+			if (! ring_buf_empty(&rx_data)) {
 				FD_SET(client_fd, &wfds);
+			}
 			FD_SET(client_fd, &rfds);
 		}
 		// TODO: interrupt line should be connected to GPIO, and gpio file handle should be in select
@@ -427,6 +434,8 @@ int main(int argc, char *argv[])
 		receive_frame(&dev, &rx_data);
 	}
 
+	retval = EXIT_SUCCESS;
+cleanup:
 	si443x_close(&dev);
 cleanup2:
 	if (client_fd != -1) {
@@ -436,6 +445,8 @@ cleanup2:
 		close(sock_fd);
 		unlink(local.sun_path);
 	}
+
+	ring_buf_destroy(&rx_data);
 
 	return retval;
 }
