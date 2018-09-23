@@ -151,6 +151,11 @@ bool ring_buf_empty(const ring_buf_t *obj)
 	return (obj->woff == obj->roff);
 }
 
+bool ring_buf_full(const ring_buf_t *obj)
+{
+	return (ring_buf_bytes_free(obj) == 0);
+}
+
 uint8_t *ring_buf_begin(ring_buf_t *obj)
 {
 	return &obj->buf[obj->roff];

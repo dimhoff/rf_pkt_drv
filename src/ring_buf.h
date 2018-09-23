@@ -119,5 +119,6 @@ size_t ring_buf_bytes_used(const ring_buf_t *obj);
 size_t ring_buf_bytes_readable(const ring_buf_t *obj);
 size_t ring_buf_bytes_writable(const ring_buf_t *obj);
 bool ring_buf_empty(const ring_buf_t *obj);
+bool ring_buf_full(const ring_buf_t *obj);
 
 #endif // __RING_BUF_H__
