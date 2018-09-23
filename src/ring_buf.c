@@ -73,6 +73,24 @@ void ring_buf_add(ring_buf_t *obj, const uint8_t *data, size_t len)
 	}
 }
 
+void ring_buf_get(ring_buf_t *obj, uint8_t *data, size_t len)
+{
+	assert(len <= ring_buf_bytes_used(obj));
+
+	size_t to_read;
+
+	while (len > 0) {
+		to_read = ring_buf_bytes_readable(obj);
+		if (to_read > len) {
+			to_read = len;
+		}
+		memcpy(data, ring_buf_begin(obj), to_read);
+		data += to_read;
+		len -= to_read;
+		ring_buf_consume(obj, to_read);
+	}
+}
+
 void ring_buf_consume(ring_buf_t *obj, size_t cnt)
 {
 	assert(cnt <= ring_buf_bytes_used(obj));

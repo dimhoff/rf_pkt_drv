@@ -70,6 +70,18 @@ void ring_buf_destroy(ring_buf_t *obj);
 void ring_buf_add(ring_buf_t *obj, const uint8_t *data, size_t len);
 
 /**
+ * Move bytes out of buffer
+ *
+ * Copy bytes from ring buffer into provided buffer. And move the read pointer
+ * forward.
+ *
+ * @param obj	Ring buffer object
+ * @param data	Target buffer to copy bytes into
+ * @param len	Amount of bytes to copy
+ */
+void ring_buf_get(ring_buf_t *obj, uint8_t *data, size_t len);
+
+/**
  * Consume bytes from buffer
  *
  * Consume bytes by moving the read pointer 'cnt' bytes forward.
