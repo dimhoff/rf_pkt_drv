@@ -34,55 +34,14 @@
 #include <assert.h>
 #include <errno.h>
 #include <unistd.h>
-#include <signal.h>
-#include <endian.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
 
 #include "si443x.h"
+#include "spi.h"
 
-static int _si443x_spi_transfer(int fd, bool write, uint8_t addr,
-				uint8_t *data, size_t len)
-{
-	struct spi_ioc_transfer	xfer[2];
-	int err;
-
-	assert((addr & 0x80) == 0);
-	assert(
-		// addr 0x7f gives access to read/write FIFO's
-		((addr == 0x7f) && (len <= 64)) ||
-		((len < 0x7f) && (addr <= 0x7f - len))
-	);
-
-	memset(xfer, 0, sizeof(xfer));
-
-	if (write) {
-		addr |= 0x80;
-	}
-
-	// Send (rw // addr)
-	xfer[0].tx_buf = (unsigned long) &addr;
-	xfer[0].len = 1;
-
-	// Read data
-	if (write) {
-		xfer[1].tx_buf = (unsigned long) data;
-	} else {
-		xfer[1].rx_buf = (unsigned long) data;
-	}
-	xfer[1].len = len;
-
-	err = ioctl(fd, SPI_IOC_MESSAGE(2), xfer);
-	if (err < 0) {
-		perror("SPI_IOC_MESSAGE");
-		return -1;
-	}
-
-	return 0;
-}
+int _si443x_update_config(si443x_dev_t *dev);
 
 int _si443x_update_config(si443x_dev_t *dev)
 {
@@ -91,13 +50,13 @@ int _si443x_update_config(si443x_dev_t *dev)
 	// directly with write_reg() or write_regs() than the configuration
 	// isn't updated.
 
-	if (si443x_read_reg(dev, HEADER_CONTROL_2, &val) != 0) {
+	if (spi_read_reg(dev->fd, HEADER_CONTROL_2, &val) != 0) {
 		return -1;
 	}
 
 	dev->txhdlen = (val >> HEADER_CONTROL_2_HDLEN_SHIFT) & HEADER_CONTROL_2_HDLEN_MASK;
 	if ((val & HEADER_CONTROL_2_FIXPKLEN)) {
-		if (si443x_read_reg(dev, TRANSMIT_PACKET_LENGTH, &dev->fixpklen) != 0) {
+		if (spi_read_reg(dev->fd, TRANSMIT_PACKET_LENGTH, &dev->fixpklen) != 0) {
 			return -1;
 		}
 	} else {
@@ -105,27 +64,6 @@ int _si443x_update_config(si443x_dev_t *dev)
 	}
 
 	return 0;
-}
-
-int si443x_read_reg(si443x_dev_t *dev, uint8_t addr, uint8_t *data)
-{
-	return _si443x_spi_transfer(dev->fd, false, addr, data, 1);
-}
-
-int si443x_read_regs(si443x_dev_t *dev, uint8_t addr, uint8_t *data, size_t len)
-{
-	return _si443x_spi_transfer(dev->fd, false, addr, data, len);
-}
-
-int si443x_write_reg(si443x_dev_t *dev, uint8_t addr, uint8_t data)
-{
-	return _si443x_spi_transfer(dev->fd, true, addr, &data, 1);
-}
-
-int si443x_write_regs(si443x_dev_t *dev, uint8_t addr,
-		      const uint8_t *data, size_t len)
-{
-	return _si443x_spi_transfer(dev->fd, true, addr, (uint8_t *) data, len);
 }
 
 int si443x_open(si443x_dev_t *dev, const char *filename)
@@ -140,7 +78,7 @@ int si443x_open(si443x_dev_t *dev, const char *filename)
 
 	dev->fd = fd;
 
-	if (si443x_read_reg(dev, DEVICE_TYPE, &val) != 0) {
+	if (spi_read_reg(dev->fd, DEVICE_TYPE, &val) != 0) {
 		si443x_close(dev);
 		return -1;
 	}
@@ -161,10 +99,10 @@ void si443x_dump_status(si443x_dev_t *dev)
 {
 	uint8_t buf[2];
 
-	si443x_read_regs(dev, INTERRUPT_STATUS_1, buf, 2);
+	spi_read_regs(dev->fd, INTERRUPT_STATUS_1, buf, 2);
 	fprintf(stderr, "Interrupt/Device Status: %.2x %.2x", buf[0], buf[1]);
 
-	si443x_read_reg(dev, DEVICE_STATUS, &buf[0]);
+	spi_read_reg(dev->fd, DEVICE_STATUS, &buf[0]);
 	fprintf(stderr, " %.2x\n", buf[0]);
 }
 
@@ -173,7 +111,7 @@ int si443x_reset(si443x_dev_t *dev)
 	int err = -1;
 	uint8_t val;
 
-	err = si443x_write_reg(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
+	err = spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_XTON |
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES);
 	if (err != 0) {
@@ -182,7 +120,7 @@ int si443x_reset(si443x_dev_t *dev)
 
 	do {
 		//TODO: add timeout
-		err = si443x_read_reg(dev, INTERRUPT_STATUS_2, &val);
+		err = spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
 		if (err != 0) {
 			return err;
 		}
@@ -197,14 +135,14 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 	int err;
 
 	// Get current control values
-	err = si443x_read_regs(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
+	err = spi_read_regs(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
 			       ctrl, 2);
 	if (err != 0)
 		return err;
 
 	// Disable RX mode
 	if (ctrl[0] & OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON) {
-		err = si443x_write_reg(dev,
+		err = spi_write_reg(dev->fd,
 				       OPERATING_MODE_AND_FUNCTION_CONTROL_1,
 				       ctrl[0] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON);
 		if (err != 0)
@@ -213,13 +151,13 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 	}
 
 	// Clear RX FIFO
-	err = si443x_write_reg(dev,
+	err = spi_write_reg(dev->fd,
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_2,
 			       ctrl[1] | OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
 	if (err != 0)
 		return err;
 
-	err = si443x_write_reg(dev,
+	err = spi_write_reg(dev->fd,
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_2,
 			       ctrl[1] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
 	if (err != 0)
@@ -227,7 +165,7 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 
 	// Re-enable RX mode
 	if (ctrl[0] & OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON) {
-		err = si443x_write_reg(dev,
+		err = spi_write_reg(dev->fd,
 				       OPERATING_MODE_AND_FUNCTION_CONTROL_1, ctrl[0]);
 		if (err != 0)
 			return err;
@@ -250,7 +188,7 @@ int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs)
 			return -1;
 		}
 
-		err = si443x_write_regs(dev, off, startp, len);
+		err = spi_write_regs(dev->fd, off, startp, len);
 		if (err != 0) {
 			return err;
 		}

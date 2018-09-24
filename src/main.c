@@ -52,6 +52,7 @@
 #include "sparse_buf.h"
 #include "parse_reg_file.h"
 #include "si443x.h"
+#include "spi.h"
 
 #define RING_BUFFER_SIZE 4096
 
@@ -97,8 +98,8 @@ static int initialize_receiver(si443x_dev_t *dev, sparse_buf_t *regs)
 
 	// enable receiver in multi packet FIFO mode
 	//TODO: use defines
-	CHECK(si443x_write_reg(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_1, 0x05));
-	CHECK(si443x_write_reg(dev, OPERATING_MODE_AND_FUNCTION_CONTROL_2, 0x10));
+	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1, 0x05));
+	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_2, 0x10));
 
 	err = 0;
 fail:
@@ -116,7 +117,7 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	// TODO: check for errors...
 
 	// Check if packet available
-	si443x_read_reg(dev, DEVICE_STATUS, &val);
+	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
 	if ((val & DEVICE_STATUS_RXFFEM)) {
 		return 0;
 	}
@@ -127,9 +128,9 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 
 	// Wait till done receiving current packet
 	//NOTE: DEVICE_STATUS.RXFFEM is also != 1 for partial packets!
-	si443x_read_reg(dev, INTERRUPT_STATUS_2, &val);
+	spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
 	while ((val & INTERRUPT_STATUS_2_ISWDET)) {
-		si443x_read_reg(dev, INTERRUPT_STATUS_2, &val);
+		spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
 		//TODO: add timeout?
 	}
 
@@ -139,7 +140,7 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 		hdrlen += 1;
 	}
 	if (hdrlen) {
-		si443x_read_regs(dev, FIFO_ACCESS, buf, hdrlen);
+		spi_read_regs(dev->fd, FIFO_ACCESS, buf, hdrlen);
 		if (verbose) {
 			printf("Received header: \n");
 			for (i = 0; i < hdrlen; i++) {
@@ -161,7 +162,7 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	}
 
 	// Read Payload
-	si443x_read_regs(dev, FIFO_ACCESS, &buf[hdrlen], pktlen);
+	spi_read_regs(dev->fd, FIFO_ACCESS, &buf[hdrlen], pktlen);
 	if (verbose) {
 		printf("Received packet: \n");
 		for (i = 0; i < pktlen; i++) {
@@ -173,7 +174,7 @@ int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
 	}
 
 	// Check FIFO over/underflow condition
-	si443x_read_reg(dev, DEVICE_STATUS, &val);
+	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
 	if (val & (DEVICE_STATUS_FFOVFL |
 			DEVICE_STATUS_FFUNFL)) {
 		fprintf(stderr, "ERROR: Device "
