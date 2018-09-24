@@ -1,7 +1,7 @@
 /**
  * main.c - Si443x transceiver user space driver
  *
- * Copyright (c) 2014, David Imhoff <dimhoff.devel@gmail.com>
+ * Copyright (c) 2018, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,6 @@
 #include "sparse_buf.h"
 #include "parse_reg_file.h"
 #include "si443x.h"
-#include "spi.h"
 
 #define RING_BUFFER_SIZE 4096
 
@@ -80,124 +79,6 @@ void usage(const char *name)
 		name);
 }
 
-#define CHECK(X) \
-	do { \
-		err = X; \
-		if (err != 0) goto fail;\
-	} while(0)
-
-static int initialize_receiver(si443x_dev_t *dev, sparse_buf_t *regs)
-{
-	int err = -1;
-
-	// reset
-	CHECK(si443x_reset(dev));
-
-	// Program magic values from calculator sheet
-	CHECK(si443x_configure(dev, regs));
-
-	// enable receiver in multi packet FIFO mode
-	//TODO: use defines
-	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1, 0x05));
-	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_2, 0x10));
-
-	err = 0;
-fail:
-	return err;
-}
-
-int receive_frame(si443x_dev_t *dev, ring_buf_t *rbuf)
-{
-	uint8_t buf[64];
-	uint8_t hdrlen;
-	uint8_t pktlen;
-	uint8_t val;
-	int i;
-
-	// TODO: check for errors...
-
-	// Check if packet available
-	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
-	if ((val & DEVICE_STATUS_RXFFEM)) {
-		return 0;
-	}
-
-	if (verbose) {
-		si443x_dump_status(dev);
-	}
-
-	// Wait till done receiving current packet
-	//NOTE: DEVICE_STATUS.RXFFEM is also != 1 for partial packets!
-	spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
-	while ((val & INTERRUPT_STATUS_2_ISWDET)) {
-		spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
-		//TODO: add timeout?
-	}
-
-	// Read Header
-	hdrlen = dev->txhdlen;
-	if (dev->fixpklen == 0) {
-		hdrlen += 1;
-	}
-	if (hdrlen) {
-		spi_read_regs(dev->fd, FIFO_ACCESS, buf, hdrlen);
-		if (verbose) {
-			printf("Received header: \n");
-			for (i = 0; i < hdrlen; i++) {
-				printf("%.2x ", buf[i]);
-			}
-			putchar('\n');
-			si443x_dump_status(dev);
-		}
-	}
-	if (dev->fixpklen == 0) {
-		pktlen = buf[hdrlen - 1];
-		if (pktlen > SI443X_FIFO_SIZE - 3) {
-			fprintf(stderr, "ERROR: Packet len too big (%.2x)\n",
-				pktlen);
-			goto fail;
-		}
-	} else {
-		pktlen = dev->fixpklen;
-	}
-
-	// Read Payload
-	spi_read_regs(dev->fd, FIFO_ACCESS, &buf[hdrlen], pktlen);
-	if (verbose) {
-		printf("Received packet: \n");
-		for (i = 0; i < pktlen; i++) {
-			printf("%.2x ", buf[hdrlen + i]);
-		}
-		putchar('\n');
-
-		si443x_dump_status(dev);
-	}
-
-	// Check FIFO over/underflow condition
-	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
-	if (val & (DEVICE_STATUS_FFOVFL |
-			DEVICE_STATUS_FFUNFL)) {
-		fprintf(stderr, "ERROR: Device "
-			"overflow/underflow (%.2x)\n", val);
-		goto fail;
-	}
-
-	// Add to ring buffer
-	if (ring_buf_bytes_free(rbuf) >= hdrlen + pktlen) {
-		ring_buf_add(rbuf, buf, hdrlen + pktlen);
-	}
-
-	return 0;
-fail:
-	// Error Recovery
-	//TODO: verify SPI is still working
-	if (verbose) {
-		printf("resetting RX fifo\n");
-	}
-	si443x_reset_rx_fifo(dev);
-	return -1;
-}
-
 int main(int argc, char *argv[])
 {
 	char *dev_path = DEFAULT_DEV_PATH;
@@ -220,7 +101,7 @@ int main(int argc, char *argv[])
 	int nfds;
 	struct timespec timeout;
 
-	si443x_dev_t dev;
+	rf_dev_t dev;
 
 	ring_buf_t rx_data;
 	ring_buf_t tx_data;
@@ -330,14 +211,14 @@ int main(int argc, char *argv[])
 	}
 
 	// Setup Si443x device
-	if (si443x_open(&dev, dev_path) != 0) {
-		perror("si443x_open()");
+	if (rf_open(&dev, dev_path) != 0) {
+		perror("rf_open()");
 		goto cleanup2;
 	}
 
-	if (initialize_receiver(&dev, &regs) != 0) {
+	if (rf_init(&dev, &regs) != 0) {
 		fprintf(stderr, "Failed to initialize Si443x device\n");
-		goto cleanup2;
+		goto cleanup;
 	}
 
 	// Main loop
@@ -446,12 +327,12 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		receive_frame(&dev, &rx_data);
+		rf_handle(&dev, &rx_data, &tx_data);
 	}
 
 	retval = EXIT_SUCCESS;
 cleanup:
-	si443x_close(&dev);
+	rf_close(&dev);
 cleanup2:
 	if (client_fd != -1) {
 		close(client_fd);

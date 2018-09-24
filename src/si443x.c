@@ -1,7 +1,7 @@
 /**
  * si443x.c - Si443x interface functions
  *
- * Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
+ * Copyright (c) 2018, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,34 +39,26 @@
 #include <sys/stat.h>
 
 #include "si443x.h"
+#include "si443x_enums.h"
 #include "spi.h"
 
-int _si443x_update_config(si443x_dev_t *dev);
+extern unsigned int verbose;
 
-int _si443x_update_config(si443x_dev_t *dev)
-{
-	uint8_t val;
-	// FIXME: if HEADER_CONTROL_2 or TRANSMIT_PACKET_LENGTH are written
-	// directly with write_reg() or write_regs() than the configuration
-	// isn't updated.
+#define SI443X_FIFO_SIZE 64
 
-	if (spi_read_reg(dev->fd, HEADER_CONTROL_2, &val) != 0) {
-		return -1;
-	}
+#define CHECK(X) \
+	do { \
+		err = X; \
+		if (err != 0) goto fail;\
+	} while(0)
 
-	dev->txhdlen = (val >> HEADER_CONTROL_2_HDLEN_SHIFT) & HEADER_CONTROL_2_HDLEN_MASK;
-	if ((val & HEADER_CONTROL_2_FIXPKLEN)) {
-		if (spi_read_reg(dev->fd, TRANSMIT_PACKET_LENGTH, &dev->fixpklen) != 0) {
-			return -1;
-		}
-	} else {
-		dev->fixpklen = 0;
-	}
+static int _reset(rf_dev_t *dev);
+static int _reset_rx_fifo(rf_dev_t *dev);
+static int _sync_config(rf_dev_t *dev);
+static int _configure(rf_dev_t *dev, sparse_buf_t *regs);
+static void _dump_status(rf_dev_t *dev);
 
-	return 0;
-}
-
-int si443x_open(si443x_dev_t *dev, const char *filename)
+int rf_open(rf_dev_t *dev, const char *filename)
 {
 	int fd;
 	uint8_t val;
@@ -79,34 +71,140 @@ int si443x_open(si443x_dev_t *dev, const char *filename)
 	dev->fd = fd;
 
 	if (spi_read_reg(dev->fd, DEVICE_TYPE, &val) != 0) {
-		si443x_close(dev);
+		rf_close(dev);
 		return -1;
 	}
 	if (val != DEVICE_TYPE_EZRADIOPRO) {
-		si443x_close(dev);
+		rf_close(dev);
 		return -1;
 	}
 
-	if (_si443x_update_config(dev) != 0) {
-		si443x_close(dev);
+	if (_sync_config(dev) != 0) {
+		rf_close(dev);
 		return -1;
 	}
 
 	return 0;
 }
 
-void si443x_dump_status(si443x_dev_t *dev)
+void rf_close(rf_dev_t *dev)
 {
-	uint8_t buf[2];
-
-	spi_read_regs(dev->fd, INTERRUPT_STATUS_1, buf, 2);
-	fprintf(stderr, "Interrupt/Device Status: %.2x %.2x", buf[0], buf[1]);
-
-	spi_read_reg(dev->fd, DEVICE_STATUS, &buf[0]);
-	fprintf(stderr, " %.2x\n", buf[0]);
+	close(dev->fd);
 }
 
-int si443x_reset(si443x_dev_t *dev)
+int rf_init(rf_dev_t *dev, sparse_buf_t *regs)
+{
+	int err = -1;
+
+	// reset
+	CHECK(_reset(dev));
+
+	// Program magic values from calculator sheet
+	CHECK(_configure(dev, regs));
+
+	// enable receiver in multi packet FIFO mode
+	//TODO: use defines
+	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1, 0x05));
+	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_2, 0x10));
+
+	err = 0;
+fail:
+	return err;
+}
+
+int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
+{
+	uint8_t buf[64];
+	uint8_t hdrlen;
+	uint8_t pktlen;
+	uint8_t val;
+	int i;
+
+	// TODO: check for errors...
+
+	// Check if packet available
+	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
+	if ((val & DEVICE_STATUS_RXFFEM)) {
+		return 0;
+	}
+
+	if (verbose) {
+		_dump_status(dev);
+	}
+
+	// Wait till done receiving current packet
+	//NOTE: DEVICE_STATUS.RXFFEM is also != 1 for partial packets!
+	spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
+	while ((val & INTERRUPT_STATUS_2_ISWDET)) {
+		spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
+		//TODO: add timeout?
+	}
+
+	// Read Header
+	hdrlen = dev->txhdlen;
+	if (dev->fixpklen == 0) {
+		hdrlen += 1;
+	}
+	if (hdrlen) {
+		spi_read_regs(dev->fd, FIFO_ACCESS, buf, hdrlen);
+		if (verbose) {
+			printf("Received header: \n");
+			for (i = 0; i < hdrlen; i++) {
+				printf("%.2x ", buf[i]);
+			}
+			putchar('\n');
+			_dump_status(dev);
+		}
+	}
+	if (dev->fixpklen == 0) {
+		pktlen = buf[hdrlen - 1];
+		if (pktlen > SI443X_FIFO_SIZE - 3) {
+			fprintf(stderr, "ERROR: Packet len too big (%.2x)\n",
+				pktlen);
+			goto fail;
+		}
+	} else {
+		pktlen = dev->fixpklen;
+	}
+
+	// Read Payload
+	spi_read_regs(dev->fd, FIFO_ACCESS, &buf[hdrlen], pktlen);
+	if (verbose) {
+		printf("Received packet: \n");
+		for (i = 0; i < pktlen; i++) {
+			printf("%.2x ", buf[hdrlen + i]);
+		}
+		putchar('\n');
+
+		_dump_status(dev);
+	}
+
+	// Check FIFO over/underflow condition
+	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
+	if (val & (DEVICE_STATUS_FFOVFL |
+			DEVICE_STATUS_FFUNFL)) {
+		fprintf(stderr, "ERROR: Device "
+			"overflow/underflow (%.2x)\n", val);
+		goto fail;
+	}
+
+	// Add to ring buffer
+	if (ring_buf_bytes_free(rx_buf) >= hdrlen + pktlen) {
+		ring_buf_add(rx_buf, buf, hdrlen + pktlen);
+	}
+
+	return 0;
+fail:
+	// Error Recovery
+	//TODO: verify SPI is still working
+	if (verbose) {
+		printf("resetting RX fifo\n");
+	}
+	_reset_rx_fifo(dev);
+	return -1;
+}
+
+static int _reset(rf_dev_t *dev)
 {
 	int err = -1;
 	uint8_t val;
@@ -129,7 +227,7 @@ int si443x_reset(si443x_dev_t *dev)
 	return 0;
 }
 
-int si443x_reset_rx_fifo(si443x_dev_t *dev)
+static int _reset_rx_fifo(rf_dev_t *dev)
 {
 	uint8_t ctrl[2];
 	int err;
@@ -174,7 +272,30 @@ int si443x_reset_rx_fifo(si443x_dev_t *dev)
 	return 0;
 }
 
-int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs)
+static int _sync_config(rf_dev_t *dev)
+{
+	uint8_t val;
+	// FIXME: if HEADER_CONTROL_2 or TRANSMIT_PACKET_LENGTH are written
+	// directly with write_reg() or write_regs() than the configuration
+	// isn't updated.
+
+	if (spi_read_reg(dev->fd, HEADER_CONTROL_2, &val) != 0) {
+		return -1;
+	}
+
+	dev->txhdlen = (val >> HEADER_CONTROL_2_HDLEN_SHIFT) & HEADER_CONTROL_2_HDLEN_MASK;
+	if ((val & HEADER_CONTROL_2_FIXPKLEN)) {
+		if (spi_read_reg(dev->fd, TRANSMIT_PACKET_LENGTH, &dev->fixpklen) != 0) {
+			return -1;
+		}
+	} else {
+		dev->fixpklen = 0;
+	}
+
+	return 0;
+}
+
+static int _configure(rf_dev_t *dev, sparse_buf_t *regs)
 {
 	int err = -1;
 	size_t off = 0;
@@ -196,10 +317,16 @@ int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs)
 		off += len;
 	}
 
-	return _si443x_update_config(dev);
+	return _sync_config(dev);
 }
 
-void si443x_close(si443x_dev_t *dev)
+static void _dump_status(rf_dev_t *dev)
 {
-	close(dev->fd);
+	uint8_t buf[2];
+
+	spi_read_regs(dev->fd, INTERRUPT_STATUS_1, buf, 2);
+	fprintf(stderr, "Interrupt/Device Status: %.2x %.2x", buf[0], buf[1]);
+
+	spi_read_reg(dev->fd, DEVICE_STATUS, &buf[0]);
+	fprintf(stderr, " %.2x\n", buf[0]);
 }

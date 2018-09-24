@@ -1,7 +1,7 @@
 /**
  * si443x.h - Si443x interface functions
  *
- * Copyright (c) 2015, David Imhoff <dimhoff.devel@gmail.com>
+ * Copyright (c) 2018, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,25 +29,19 @@
 #ifndef __SI443X_H__
 #define __SI443X_H__
 
-#include "si443x_enums.h"
+#include "ring_buf.h"
 #include "sparse_buf.h"
-
-#define SI443X_FIFO_SIZE 64
 
 typedef struct {
 	int fd;
 	uint8_t txhdlen;
-	uint8_t fixpklen;
-} si443x_dev_t;
+	uint8_t fixpklen; /**< Length of packet or 0 if var. length */
+} rf_dev_t;
 
-int si443x_open(si443x_dev_t *dev, const char *filename);
-void si443x_close(si443x_dev_t *dev);
+int rf_open(rf_dev_t *dev, const char *filename);
+void rf_close(rf_dev_t *dev);
 
-int si443x_reset(si443x_dev_t *dev);
-int si443x_reset_rx_fifo(si443x_dev_t *dev);
-
-int si443x_configure(si443x_dev_t *dev, sparse_buf_t *regs);
-
-void si443x_dump_status(si443x_dev_t *dev);
+int rf_init(rf_dev_t *dev, sparse_buf_t *regs);
+int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf);
 
 #endif // __SI443X_H__
