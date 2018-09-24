@@ -68,15 +68,16 @@ void usage(const char *name)
 {
 	fprintf(stderr,
 		"Si443x User Space driver - " VERSION "\n"
-		"Usage: %s [-v] [-d <device>] [-c <config>] [-s <socket>]\n"
+		"Usage: %s [-v] [-d <device>] [-c <config>] [-s <socket>] [-i <gpio#>]\n"
 		"\n"
 		"Options:\n"
 		" -c <path>	Register Configuration file\n"
 		" -d <path>	SPI device file to use (default: " DEFAULT_DEV_PATH ")\n"
 		" -s <path>	Socket path for clients (default: " DEFAULT_SOCK_PATH ")\n"
+		" -i <gpio#>	IRQ GPIO pin number, or -1 to use polling (default: %d)\n"
 		" -v		Increase verbosity level, use multiple times for more logging\n"
 		" -h		Display this help message\n",
-		name);
+		name, DEFAULT_IRQ_PIN);
 }
 
 int main(int argc, char *argv[])
@@ -88,6 +89,9 @@ int main(int argc, char *argv[])
 	int opt;
 	int retval = EXIT_FAILURE;
 	int r;
+
+	int gpio_pin = DEFAULT_IRQ_PIN;
+	int gpio_fd = -1;
 
 	int sock_fd = -1;
 	int client_fd = -1;
@@ -110,7 +114,7 @@ int main(int argc, char *argv[])
 	//TODO: split into smaller functions!!!
 
 	// Argument parsing
-	while ((opt = getopt(argc, argv, "hd:c:s:v")) != -1) {
+	while ((opt = getopt(argc, argv, "hd:c:s:i:v")) != -1) {
 		switch (opt) {
 		case 'h':
 			usage(argv[0]);
@@ -123,6 +127,18 @@ int main(int argc, char *argv[])
 		case 'd':
 			dev_path = optarg;
 			break;
+		case 'i': {
+			char *endp;
+			gpio_pin = strtol(optarg, &endp, 10);
+			if (*endp != '\0') {
+				fprintf(stderr, "IRQ pin number must be a integer number.\n");
+				exit(EXIT_FAILURE);
+			} else if (gpio_pin >= 1000) {
+				fprintf(stderr, "IRQ pin number < 1000 are currently only supported.\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		}
 		case 's':
 			sock_path = optarg;
 			if (strlen(sock_path) >= sizeof(local.sun_path)+1) {
@@ -221,6 +237,46 @@ int main(int argc, char *argv[])
 		goto cleanup;
 	}
 
+	// Setup interrupt pin
+	if (gpio_pin >= 0) {
+#define GPIO_SYS_PATH "/sys/class/gpio"
+#define GPIO_INT_EDGE "rising"
+		char path_buf[sizeof(GPIO_SYS_PATH"/gpio999/direction")];
+
+		// configure direction
+		snprintf(path_buf, sizeof(path_buf), GPIO_SYS_PATH"/gpio%u/direction", gpio_pin);
+		if ((gpio_fd = open(path_buf, O_WRONLY)) == -1) {
+			perror(path_buf);
+			goto cleanup;
+		}
+		if (write(gpio_fd, "in", 2) != 2) {
+			perror("Failed to configure IRQ GPIO pin direction");
+			close(gpio_fd);
+			goto cleanup;
+		}
+		close(gpio_fd);
+
+		// configure trigger edge
+		snprintf(path_buf, sizeof(path_buf), GPIO_SYS_PATH"/gpio%u/edge", gpio_pin);
+		if ((gpio_fd = open(path_buf, O_WRONLY)) == -1) {
+			perror(path_buf);
+			goto cleanup;
+		}
+		if (write(gpio_fd, GPIO_INT_EDGE, strlen(GPIO_INT_EDGE)) != strlen(GPIO_INT_EDGE)) {
+			perror("Failed to configure IRQ GPIO trigger edge");
+			close(gpio_fd);
+			goto cleanup;
+		}
+		close(gpio_fd);
+
+		// open value file
+		snprintf(path_buf, sizeof(path_buf), GPIO_SYS_PATH"/gpio%u/value", gpio_pin);
+		if ((gpio_fd = open(path_buf, O_RDONLY)) == -1) {
+			perror(path_buf);
+			goto cleanup;
+		}
+	}
+
 	// Main loop
 	for (;;) {
 		// Setup select structures
@@ -242,7 +298,12 @@ int main(int argc, char *argv[])
 				FD_SET(client_fd, &rfds);
 			}
 		}
-		// TODO: interrupt line should be connected to GPIO, and gpio file handle should be in select
+		if (gpio_fd != -1) {
+			FD_SET(gpio_fd, &efds);
+			if (gpio_fd > nfds) {
+				nfds = gpio_fd;
+			}
+		}
 
 		timeout.tv_sec = 1;
 		timeout.tv_nsec = 0;
@@ -325,6 +386,21 @@ int main(int argc, char *argv[])
 					ring_buf_consume(&rx_data, wlen);
 				}
 			}
+			if (gpio_fd != -1 && FD_ISSET(gpio_fd, &efds)) {
+				// clear readable status, but we don't care about the data
+				char rdbuf[10];
+				lseek(gpio_fd, 0, SEEK_SET);
+				if (read(gpio_fd, rdbuf, sizeof(rdbuf)) < 0) {
+					if (errno != EINTR) {
+						perror("Error reading from interrupt pin");
+						retval = EXIT_FAILURE;
+						goto cleanup;
+					}
+				}
+				if (verbose) {
+					printf("Interrupt Requested\n");
+				}
+			}
 		}
 
 		rf_handle(&dev, &rx_data, &tx_data);
@@ -332,6 +408,9 @@ int main(int argc, char *argv[])
 
 	retval = EXIT_SUCCESS;
 cleanup:
+	if (gpio_fd != -1) {
+		close(gpio_fd);
+	}
 	rf_close(&dev);
 cleanup2:
 	if (client_fd != -1) {
