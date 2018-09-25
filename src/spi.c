@@ -38,6 +38,7 @@
 
 #include "spi.h"
 #include "error.h"
+#include "debug.h"
 
 /**
  * Execute a SPI transfer
@@ -87,14 +88,8 @@ static int _spi_transfer(int fd, bool do_write, uint8_t addr,
 		return ERR_SPI_IOCTL;
 	}
 
-#if DEBUG_SPI
-	int i;
-	printf("SPI %s @ 0x%02x:\n", do_write ? "WRITE" : "READ", addr & 0x7f);
-	for (i=0; i < len; i++) {
-		printf("%02x ", data[i]);
-	}
-	putchar('\n');
-#endif
+	DBG_PRINTF(DBG_LVL_EXTREEM, "SPI %s @ 0x%02x:\n", do_write ? "WRITE" : "READ", addr & 0x7f);
+	DBG_HEXDUMP(DBG_LVL_EXTREEM, data, len);
 
 	return ERR_OK;
 }

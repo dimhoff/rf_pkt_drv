@@ -52,11 +52,12 @@
 #include "ring_buf.h"
 #include "sparse_buf.h"
 #include "parse_reg_file.h"
+#include "debug.h"
 #include "si443x.h"
 
 #define RING_BUFFER_SIZE 4096
 
-unsigned int verbose = 0;
+unsigned int debug_level = 0;
 
 volatile sig_atomic_t terminate = 0;
 
@@ -149,7 +150,7 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'v':
-			verbose++;
+			debug_level++;
 			break;
 		default: /* '?' */
 			usage(argv[0]);
@@ -329,7 +330,7 @@ int main(int argc, char *argv[])
 
 				// Disconnect previous client
 				if (client_fd != -1) {
-					printf("Closing old connection in favor of new one\n");
+					DBG_PRINTF(DBG_LVL_LOW, "Closing old connection in favor of new one\n");
 					close(client_fd);
 					client_fd = -1;
 				}
@@ -340,7 +341,7 @@ int main(int argc, char *argv[])
 					perror("accept");
 					continue;
 				}
-				printf("Accepted new client connection\n");
+				DBG_PRINTF(DBG_LVL_LOW, "Accepted new client connection\n");
 				ring_buf_clear(&rx_data);
 				ring_buf_clear(&tx_data);
 			} else if (client_fd != -1) {
@@ -359,7 +360,7 @@ int main(int argc, char *argv[])
 						if (rlen < 0) {
 							perror("Client read failure");
 						} else {
-							printf("Client disconnected\n");
+							DBG_PRINTF(DBG_LVL_LOW, "Client disconnected\n");
 						}
 						close(client_fd);
 						client_fd = -1;
@@ -367,14 +368,11 @@ int main(int argc, char *argv[])
 					}
 
 					ring_buf_add(&tx_data, rdbuf, rlen);
-					if (verbose) {
-						printf("Read client %zd bytes\n", rlen);
-					}
+					DBG_PRINTF(DBG_LVL_HIGH, "Read client %zd bytes\n", rlen);
 				}
 				if (FD_ISSET(client_fd, &wfds)) {
 					// Write client socket
 					ssize_t wlen;
-					printf("Write client\n");
 
 					wlen = write(client_fd, ring_buf_begin(&rx_data),
 						     ring_buf_bytes_readable(&rx_data));
@@ -385,6 +383,7 @@ int main(int argc, char *argv[])
 						continue;
 					}
 					ring_buf_consume(&rx_data, wlen);
+					DBG_PRINTF(DBG_LVL_HIGH, "Written client %zd bytes\n", wlen);
 				}
 			}
 			if (gpio_fd != -1 && FD_ISSET(gpio_fd, &efds)) {
@@ -397,9 +396,7 @@ int main(int argc, char *argv[])
 						goto cleanup;
 					}
 				}
-				if (verbose) {
-					printf("Interrupt Requested\n");
-				}
+				DBG_PRINTF(DBG_LVL_HIGH, "Interrupt Requested\n");
 			}
 		}
 

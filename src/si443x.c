@@ -42,8 +42,7 @@
 #include "si443x_enums.h"
 #include "spi.h"
 #include "error.h"
-
-extern unsigned int verbose;
+#include "debug.h"
 
 #define SI443X_FIFO_SIZE 64
 
@@ -115,7 +114,6 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 	uint8_t hdrlen;
 	uint8_t pktlen;
 	uint8_t val;
-	int i;
 
 	// Check if packet available
 	TRY(spi_read_reg(dev->fd, DEVICE_STATUS, &val));
@@ -123,9 +121,8 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 		return ERR_OK;
 	}
 
-	if (verbose) {
-		_dump_status(dev);
-	}
+	DBG_PRINTF(DBG_LVL_LOW, "> Received packet: \n");
+	DBG_EXEC(DBG_LVL_HIGH, _dump_status(dev));
 
 	// Wait till done receiving current packet
 	//NOTE: DEVICE_STATUS.RXFFEM is also != 1 for partial packets!
@@ -142,14 +139,10 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 	}
 	if (hdrlen) {
 		TRY(spi_read_regs(dev->fd, FIFO_ACCESS, buf, hdrlen));
-		if (verbose) {
-			printf("Received header: \n");
-			for (i = 0; i < hdrlen; i++) {
-				printf("%.2x ", buf[i]);
-			}
-			putchar('\n');
-			_dump_status(dev);
-		}
+
+		DBG_PRINTF(DBG_LVL_MID, "hdr: ");
+		DBG_HEXDUMP(DBG_LVL_MID, buf, hdrlen);
+		DBG_EXEC(DBG_LVL_HIGH, _dump_status(dev));
 	}
 	if (dev->fixpklen == 0) {
 		pktlen = buf[hdrlen - 1];
@@ -164,15 +157,9 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 
 	// Read Payload
 	TRY(spi_read_regs(dev->fd, FIFO_ACCESS, &buf[hdrlen], pktlen));
-	if (verbose) {
-		printf("Received packet: \n");
-		for (i = 0; i < pktlen; i++) {
-			printf("%.2x ", buf[hdrlen + i]);
-		}
-		putchar('\n');
 
-		_dump_status(dev);
-	}
+	DBG_HEXDUMP(DBG_LVL_MID, &buf[hdrlen], pktlen);
+	DBG_EXEC(DBG_LVL_HIGH, _dump_status(dev));
 
 	// Check FIFO over/underflow condition
 	TRY(spi_read_reg(dev->fd, DEVICE_STATUS, &val));
@@ -187,7 +174,7 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 	if (ring_buf_bytes_free(rx_buf) >= hdrlen + pktlen) {
 		ring_buf_add(rx_buf, buf, hdrlen + pktlen);
 	} else {
-		fprintf(stderr, "Dropping packet, RX buffer overflow");
+		DBG_PRINTF(DBG_LVL_LOW, "Dropping packet: RX buffer overflow\n");
 	}
 
 	return ERR_OK;
@@ -224,9 +211,7 @@ static int _reset_rx_fifo(rf_dev_t *dev)
 	int err = ERR_UNSPEC;
 	uint8_t ctrl[2];
 
-	if (verbose) {
-		printf("resetting RX fifo\n");
-	}
+	DBG_PRINTF(DBG_LVL_HIGH, "resetting RX fifo\n");
 
 	// Get current control values
 	TRY(spi_read_regs(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
