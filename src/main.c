@@ -48,6 +48,7 @@
 
 #include <sys/select.h>
 
+#include "error.h"
 #include "ring_buf.h"
 #include "sparse_buf.h"
 #include "parse_reg_file.h"
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
 	int opt;
 	int retval = EXIT_FAILURE;
 	int r;
+	int err;
 
 	int gpio_pin = DEFAULT_IRQ_PIN;
 	int gpio_fd = -1;
@@ -111,9 +113,7 @@ int main(int argc, char *argv[])
 	ring_buf_t tx_data;
 	sparse_buf_t regs;
 
-	//TODO: split into smaller functions!!!
-
-	// Argument parsing
+	/************************ Argument Parsing **************************/
 	while ((opt = getopt(argc, argv, "hd:c:s:i:v")) != -1) {
 		switch (opt) {
 		case 'h':
@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	/************************** Initialization **************************/
 	sparse_buf_init(&regs, 0x80);
 	if (parse_reg_file(cfg_path, &regs) != 0) {
 		exit(EXIT_FAILURE);
@@ -277,7 +278,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// Main loop
+	/*************************** Main loop ******************************/
 	for (;;) {
 		// Setup select structures
 		FD_ZERO(&rfds);
@@ -313,7 +314,7 @@ int main(int argc, char *argv[])
 			    &empty_mask);
 		if (r == -1 && errno != EINTR) {
 			perror("select()");
-			break;
+			goto cleanup;
 		}
 
 		if (terminate) {
@@ -393,7 +394,6 @@ int main(int argc, char *argv[])
 				if (read(gpio_fd, rdbuf, sizeof(rdbuf)) < 0) {
 					if (errno != EINTR) {
 						perror("Error reading from interrupt pin");
-						retval = EXIT_FAILURE;
 						goto cleanup;
 					}
 				}
@@ -403,7 +403,21 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		rf_handle(&dev, &rx_data, &tx_data);
+		err = rf_handle(&dev, &rx_data, &tx_data);
+		if (err == ERR_RFM_TX_OUT_OF_SYNC) {
+			fprintf(stderr, "TX buffer out-of-sync, Disconnecting client\n");
+			close(client_fd);
+			client_fd = -1;
+		} else if (err != ERR_OK) {
+			char err_buf[sizeof("ERROR: 0x00112233")];
+			snprintf(err_buf, sizeof(err_buf), "ERROR: 0x%08x", err);
+			if (ERROR_ERRNO_VALID(err)) {
+				perror(err_buf);
+			} else {
+				fprintf(stderr, "%s\n", err_buf);
+			}
+			goto cleanup;
+		}
 	}
 
 	retval = EXIT_SUCCESS;

@@ -38,7 +38,7 @@ typedef struct {
 	uint8_t fixpklen; /**< Length of packet or 0 if var. length */
 } rf_dev_t;
 
-int rf_open(rf_dev_t *dev, const char *filename);
+int rf_open(rf_dev_t *dev, const char *spi_path);
 void rf_close(rf_dev_t *dev);
 
 int rf_init(rf_dev_t *dev, sparse_buf_t *regs);

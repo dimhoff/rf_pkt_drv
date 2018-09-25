@@ -41,16 +41,11 @@
 #include "si443x.h"
 #include "si443x_enums.h"
 #include "spi.h"
+#include "error.h"
 
 extern unsigned int verbose;
 
 #define SI443X_FIFO_SIZE 64
-
-#define CHECK(X) \
-	do { \
-		err = X; \
-		if (err != 0) goto fail;\
-	} while(0)
 
 static int _reset(rf_dev_t *dev);
 static int _reset_rx_fifo(rf_dev_t *dev);
@@ -58,74 +53,74 @@ static int _sync_config(rf_dev_t *dev);
 static int _configure(rf_dev_t *dev, sparse_buf_t *regs);
 static void _dump_status(rf_dev_t *dev);
 
-int rf_open(rf_dev_t *dev, const char *filename)
+int rf_open(rf_dev_t *dev, const char *spi_path)
 {
+	int err = ERR_UNSPEC;
 	int fd;
 	uint8_t val;
 
-	fd = open(filename, O_RDWR);
+	fd = open(spi_path, O_RDWR);
 	if (fd == -1) {
-		return -1;
+		return ERR_SPI_OPEN_DEV;
 	}
 
 	dev->fd = fd;
 
-	if (spi_read_reg(dev->fd, DEVICE_TYPE, &val) != 0) {
-		rf_close(dev);
-		return -1;
-	}
+	// Check device version
+	TRY(spi_read_reg(dev->fd, DEVICE_TYPE, &val));
 	if (val != DEVICE_TYPE_EZRADIOPRO) {
-		rf_close(dev);
-		return -1;
+		err = ERR_RFM_CHIP_VERSION;
+		goto fail;
 	}
 
-	if (_sync_config(dev) != 0) {
-		rf_close(dev);
-		return -1;
-	}
+	// Read config
+	TRY(_sync_config(dev));
 
-	return 0;
+	return ERR_OK;
+fail:
+	SAVE_ERRNO(rf_close(dev));
+	return err;
 }
 
 void rf_close(rf_dev_t *dev)
 {
 	close(dev->fd);
+	dev->fd = -1;
 }
 
 int rf_init(rf_dev_t *dev, sparse_buf_t *regs)
 {
-	int err = -1;
+	int err = ERR_UNSPEC;
 
 	// reset
-	CHECK(_reset(dev));
+	TRY(_reset(dev));
 
-	// Program magic values from calculator sheet
-	CHECK(_configure(dev, regs));
+	// Program register configuration
+	TRY(_configure(dev, regs));
 
 	// enable receiver in multi packet FIFO mode
 	//TODO: use defines
-	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1, 0x05));
-	CHECK(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_2, 0x10));
+	TRY(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1, 0x05));
+	TRY(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_2, 0x10));
 
-	err = 0;
+	err = ERR_OK;
 fail:
 	return err;
 }
 
 int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 {
+	int err = ERR_UNSPEC;
 	uint8_t buf[64];
 	uint8_t hdrlen;
 	uint8_t pktlen;
 	uint8_t val;
 	int i;
 
-	// TODO: check for errors...
-
 	// Check if packet available
-	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
+	TRY(spi_read_reg(dev->fd, DEVICE_STATUS, &val));
 	if ((val & DEVICE_STATUS_RXFFEM)) {
-		return 0;
+		return ERR_OK;
 	}
 
 	if (verbose) {
@@ -134,9 +129,9 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 
 	// Wait till done receiving current packet
 	//NOTE: DEVICE_STATUS.RXFFEM is also != 1 for partial packets!
-	spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
+	TRY(spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val));
 	while ((val & INTERRUPT_STATUS_2_ISWDET)) {
-		spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
+		TRY(spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val));
 		//TODO: add timeout?
 	}
 
@@ -146,7 +141,7 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 		hdrlen += 1;
 	}
 	if (hdrlen) {
-		spi_read_regs(dev->fd, FIFO_ACCESS, buf, hdrlen);
+		TRY(spi_read_regs(dev->fd, FIFO_ACCESS, buf, hdrlen));
 		if (verbose) {
 			printf("Received header: \n");
 			for (i = 0; i < hdrlen; i++) {
@@ -161,14 +156,14 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 		if (pktlen > SI443X_FIFO_SIZE - 3) {
 			fprintf(stderr, "ERROR: Packet len too big (%.2x)\n",
 				pktlen);
-			goto fail;
+			goto recover;
 		}
 	} else {
 		pktlen = dev->fixpklen;
 	}
 
 	// Read Payload
-	spi_read_regs(dev->fd, FIFO_ACCESS, &buf[hdrlen], pktlen);
+	TRY(spi_read_regs(dev->fd, FIFO_ACCESS, &buf[hdrlen], pktlen));
 	if (verbose) {
 		printf("Received packet: \n");
 		for (i = 0; i < pktlen; i++) {
@@ -180,124 +175,113 @@ int rf_handle(rf_dev_t *dev, ring_buf_t *rx_buf, ring_buf_t *tx_buf)
 	}
 
 	// Check FIFO over/underflow condition
-	spi_read_reg(dev->fd, DEVICE_STATUS, &val);
+	TRY(spi_read_reg(dev->fd, DEVICE_STATUS, &val));
 	if (val & (DEVICE_STATUS_FFOVFL |
 			DEVICE_STATUS_FFUNFL)) {
 		fprintf(stderr, "ERROR: Device "
 			"overflow/underflow (%.2x)\n", val);
-		goto fail;
+		goto recover;
 	}
 
 	// Add to ring buffer
 	if (ring_buf_bytes_free(rx_buf) >= hdrlen + pktlen) {
 		ring_buf_add(rx_buf, buf, hdrlen + pktlen);
+	} else {
+		fprintf(stderr, "Dropping packet, RX buffer overflow");
 	}
 
-	return 0;
+	return ERR_OK;
+
+recover:
+	TRY(_reset_rx_fifo(dev));
+	return ERR_OK;
+
 fail:
-	// Error Recovery
-	//TODO: verify SPI is still working
-	if (verbose) {
-		printf("resetting RX fifo\n");
-	}
-	_reset_rx_fifo(dev);
-	return -1;
+	return err;
 }
 
 static int _reset(rf_dev_t *dev)
 {
-	int err = -1;
+	int err = ERR_UNSPEC;
 	uint8_t val;
 
-	err = spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
+	TRY(spi_write_reg(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_XTON |
-			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES);
-	if (err != 0) {
-		return err;
-	}
+			       OPERATING_MODE_AND_FUNCTION_CONTROL_1_SWRES));
 
 	do {
 		//TODO: add timeout
-		err = spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val);
-		if (err != 0) {
-			return err;
-		}
+		TRY(spi_read_reg(dev->fd, INTERRUPT_STATUS_2, &val));
 	} while ((val & INTERRUPT_STATUS_2_ICHIPRDY) == 0);
 
-	return 0;
+	return ERR_OK;
+fail:
+	return err;
 }
 
 static int _reset_rx_fifo(rf_dev_t *dev)
 {
+	int err = ERR_UNSPEC;
 	uint8_t ctrl[2];
-	int err;
+
+	if (verbose) {
+		printf("resetting RX fifo\n");
+	}
 
 	// Get current control values
-	err = spi_read_regs(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
-			       ctrl, 2);
-	if (err != 0)
-		return err;
+	TRY(spi_read_regs(dev->fd, OPERATING_MODE_AND_FUNCTION_CONTROL_1,
+			       ctrl, 2));
 
 	// Disable RX mode
 	if (ctrl[0] & OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON) {
-		err = spi_write_reg(dev->fd,
+		TRY(spi_write_reg(dev->fd,
 				       OPERATING_MODE_AND_FUNCTION_CONTROL_1,
-				       ctrl[0] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON);
-		if (err != 0)
-			return err;
+				       ctrl[0] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON));
 		//TODO: verify that disabling RX stops current packet reception
 	}
 
 	// Clear RX FIFO
-	err = spi_write_reg(dev->fd,
+	TRY(spi_write_reg(dev->fd,
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_2,
-			       ctrl[1] | OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
-	if (err != 0)
-		return err;
+			       ctrl[1] | OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX));
 
-	err = spi_write_reg(dev->fd,
+	TRY(spi_write_reg(dev->fd,
 			       OPERATING_MODE_AND_FUNCTION_CONTROL_2,
-			       ctrl[1] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX);
-	if (err != 0)
-		return err;
+			       ctrl[1] & ~OPERATING_MODE_AND_FUNCTION_CONTROL_2_FFCLRRX));
 
 	// Re-enable RX mode
 	if (ctrl[0] & OPERATING_MODE_AND_FUNCTION_CONTROL_1_RXON) {
-		err = spi_write_reg(dev->fd,
-				       OPERATING_MODE_AND_FUNCTION_CONTROL_1, ctrl[0]);
-		if (err != 0)
-			return err;
+		TRY(spi_write_reg(dev->fd,
+			       OPERATING_MODE_AND_FUNCTION_CONTROL_1, ctrl[0]));
 	}
 
-	return 0;
+	return ERR_OK;
+fail:
+	return err;
 }
 
 static int _sync_config(rf_dev_t *dev)
 {
+	int err = ERR_UNSPEC;
 	uint8_t val;
-	// FIXME: if HEADER_CONTROL_2 or TRANSMIT_PACKET_LENGTH are written
-	// directly with write_reg() or write_regs() than the configuration
-	// isn't updated.
 
-	if (spi_read_reg(dev->fd, HEADER_CONTROL_2, &val) != 0) {
-		return -1;
-	}
+	TRY(spi_read_reg(dev->fd, HEADER_CONTROL_2, &val));
 
 	dev->txhdlen = (val >> HEADER_CONTROL_2_HDLEN_SHIFT) & HEADER_CONTROL_2_HDLEN_MASK;
 	if ((val & HEADER_CONTROL_2_FIXPKLEN)) {
-		if (spi_read_reg(dev->fd, TRANSMIT_PACKET_LENGTH, &dev->fixpklen) != 0) {
-			return -1;
-		}
+		TRY(spi_read_reg(dev->fd, TRANSMIT_PACKET_LENGTH, &dev->fixpklen));
 	} else {
 		dev->fixpklen = 0;
 	}
 
-	return 0;
+	return ERR_OK;
+fail:
+	return err;
 }
 
 static int _configure(rf_dev_t *dev, sparse_buf_t *regs)
 {
-	int err = -1;
+	int err = ERR_UNSPEC;
 	size_t off = 0;
 
 	while ((off = sparse_buf_next_valid(regs, off))
@@ -309,15 +293,16 @@ static int _configure(rf_dev_t *dev, sparse_buf_t *regs)
 			return -1;
 		}
 
-		err = spi_write_regs(dev->fd, off, startp, len);
-		if (err != 0) {
-			return err;
-		}
+		TRY(spi_write_regs(dev->fd, off, startp, len));
 
 		off += len;
 	}
 
-	return _sync_config(dev);
+	TRY(_sync_config(dev));
+
+	return ERR_OK;
+fail:
+	return err;
 }
 
 static void _dump_status(rf_dev_t *dev)

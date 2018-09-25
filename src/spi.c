@@ -37,6 +37,7 @@
 #include <linux/spi/spidev.h>
 
 #include "spi.h"
+#include "error.h"
 
 /**
  * Execute a SPI transfer
@@ -58,12 +59,9 @@ static int _spi_transfer(int fd, bool do_write, uint8_t addr,
 	struct spi_ioc_transfer	xfer[2];
 	int err;
 
-	assert((addr & 0x80) == 0);
-	assert(
-		// addr 0x7f gives access to read/write FIFO's
-		((addr == 0x7f) && (len <= 64)) ||
-		((len < 0x7f) && (addr <= 0x7f - len))
-	);
+	if (addr & 0x80) {
+		return ERR_INVAL;
+	}
 
 	memset(xfer, 0, sizeof(xfer));
 
@@ -86,7 +84,7 @@ static int _spi_transfer(int fd, bool do_write, uint8_t addr,
 	err = ioctl(fd, SPI_IOC_MESSAGE(2), xfer);
 	if (err < 0) {
 		perror("SPI_IOC_MESSAGE");
-		return -1;
+		return ERR_SPI_IOCTL;
 	}
 
 #if DEBUG_SPI
@@ -98,7 +96,7 @@ static int _spi_transfer(int fd, bool do_write, uint8_t addr,
 	putchar('\n');
 #endif
 
-	return 0;
+	return ERR_OK;
 }
 
 int spi_read_reg(int fd, uint8_t addr, uint8_t *data)
@@ -121,5 +119,3 @@ int spi_write_regs(int fd, uint8_t addr,
 {
 	return _spi_transfer(fd, true, addr, (uint8_t *) data, len);
 }
-
-
