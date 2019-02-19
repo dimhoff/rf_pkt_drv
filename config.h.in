@@ -35,4 +35,6 @@
 
 #define DEFAULT_IRQ_PIN @DEFAULT_IRQ_PIN@
 
+#cmakedefine RF_BACKEND_SX1231
+
 #endif // __CONFIG_H__

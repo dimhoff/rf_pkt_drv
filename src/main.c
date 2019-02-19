@@ -1,7 +1,7 @@
 /**
- * main.c - Si443x transceiver user space driver
+ * main.c - Packetized radio transceiver user space driver
  *
- * Copyright (c) 2018, David Imhoff <dimhoff.devel@gmail.com>
+ * Copyright (c) 2019, David Imhoff <dimhoff.devel@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +53,12 @@
 #include "sparse_buf.h"
 #include "parse_reg_file.h"
 #include "debug.h"
-#include "si443x.h"
+
+#ifdef RF_BACKEND_SX1231
+# include "sx1231.h"
+#else
+# include "si443x.h"
+#endif
 
 #define RING_BUFFER_SIZE 4096
 
@@ -69,7 +74,7 @@ void terminate_cb(int signum)
 void usage(const char *name)
 {
 	fprintf(stderr,
-		"Si443x User Space driver - " VERSION "\n"
+		"Packetized Radio Transceiver User Space driver - " VERSION "\n"
 		"Usage: %s [-v] [-d <device>] [-c <config>] [-s <socket>] [-i <gpio#>]\n"
 		"\n"
 		"Options:\n"
@@ -228,14 +233,14 @@ int main(int argc, char *argv[])
 		goto cleanup2;
 	}
 
-	// Setup Si443x device
+	// Setup Transceiver device
 	if (rf_open(&dev, dev_path) != 0) {
 		perror("rf_open()");
 		goto cleanup2;
 	}
 
 	if (rf_init(&dev, &regs) != 0) {
-		fprintf(stderr, "Failed to initialize Si443x device\n");
+		fprintf(stderr, "Failed to initialize transceiver\n");
 		goto cleanup;
 	}
 
