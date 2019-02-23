@@ -90,4 +90,4 @@ Limitations:
 # Usage
 TODO:...
 See Sensof repository for an example:
-https://github.com/dimhoff/sensof/tree/master/src/si443x_sensof
+https://github.com/dimhoff/sensof/tree/master/software/si443x_sensof
